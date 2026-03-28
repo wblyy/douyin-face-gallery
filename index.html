@@ -198,21 +198,8 @@
   </div>
 
 <script>
-// API key loaded from URL hash: #key=YOUR_KEY or localStorage
-const GROK_BASE = 'https://api.x.ai';
-let GROK_KEY = '';
-
-function loadKey() {
-  const hash = window.location.hash;
-  if (hash.startsWith('#key=')) {
-    GROK_KEY = hash.slice(5);
-    localStorage.setItem('grok_key', GROK_KEY);
-    history.replaceState(null, '', window.location.pathname);
-    return;
-  }
-  GROK_KEY = localStorage.getItem('grok_key') || '';
-}
-loadKey();
+// Backend proxy URL (handles Grok API calls server-side, avoiding CORS)
+const API_BASE = 'https://8088-capy-1771487125563-591246-preview.happycapy.ai';
 
 let bloggers = [];
 let activeBlogger = null;
@@ -328,42 +315,31 @@ async function generateVideo() {
   if (!selectedImage) return;
   const prompt = document.getElementById('promptInput').value.trim();
   if (!prompt) { alert('Please enter a prompt'); return; }
-  if (!GROK_KEY) {
-    const k = window.prompt('Enter your Grok API key:');
-    if (!k) return;
-    GROK_KEY = k;
-    localStorage.setItem('grok_key', GROK_KEY);
-  }
 
   const btn = document.getElementById('genBtn');
   const area = document.getElementById('resultArea');
   btn.disabled = true;
   btn.textContent = 'Submitting...';
-  area.innerHTML = '<div class="status-msg">Reading image and sending to Grok API...</div>';
 
   try {
-    area.innerHTML = '<div class="status-msg">Loading full-res image for Grok...</div>';
-    const b64 = await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
-    area.innerHTML = '<div class="status-msg">Sending to Grok API...</div>';
+    area.innerHTML = '<div class="status-msg">Loading full-res image...</div>';
+    const imageBase64 = await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
+    area.innerHTML = '<div class="status-msg">Sending to server proxy...</div>';
 
-    const genRes = await fetch(`${GROK_BASE}/v1/videos/generations`, {
+    const genRes = await fetch(`${API_BASE}/api/generate-video`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROK_KEY}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'grok-imagine-video',
+        imageBase64,
         prompt,
         duration: selectedDuration,
         aspect_ratio: selectedRatio,
-        image: { url: b64, type: 'base64' },
       }),
     });
 
     const genData = await genRes.json();
-    if (!genData.request_id) {
-      throw new Error(JSON.stringify(genData).slice(0, 200));
+    if (!genData.success) {
+      throw new Error(genData.error || JSON.stringify(genData).slice(0, 200));
     }
 
     area.innerHTML = '<div class="status-msg">Request submitted, polling...</div>';
@@ -390,10 +366,9 @@ async function pollVideo(requestId, prompt) {
       return;
     }
     try {
-      const res = await fetch(`${GROK_BASE}/v1/videos/${requestId}`, {
-        headers: { 'Authorization': `Bearer ${GROK_KEY}` },
-      });
-      const d = await res.json();
+      const res = await fetch(`${API_BASE}/api/video-status/${requestId}`);
+      const json = await res.json();
+      const d = json.data;
       consecutiveErrors = 0;
 
       if (d.status === 'done' || d.status === 'completed' || d.state === 'completed') {
