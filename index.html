@@ -452,15 +452,15 @@ async function generateVideo() {
   document.getElementById('cancelBtn').style.display = 'block';
 
   try {
-    area.innerHTML = '<div class="status-msg">Loading full-res image...</div>';
-    const imageBase64 = await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
-    area.innerHTML = '<div class="status-msg">Sending to server proxy...</div>';
+    // Send GitHub Pages image URL directly (spicy model requires URL, not base64)
+    const imageUrl = `https://wblyy.github.io/douyin-face-gallery/faces/${selectedImage.bloggerId}/${selectedImage.filename}`;
+    area.innerHTML = `<div class="status-msg">Sending URL to server: ${imageUrl}</div>`;
 
     const genRes = await fetch(`${API_BASE}/api/generate-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        imageBase64,
+        imageUrl,
         prompt,
         duration: selectedDuration,
         aspect_ratio: selectedRatio,
