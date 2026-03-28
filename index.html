@@ -142,6 +142,9 @@
   .history-item { background: var(--bg); border-radius: 8px; padding: 12px; font-size: 12px; }
   .history-item .prompt-text { color: var(--text2); margin-bottom: 8px; font-style: italic; }
   .api-raw { font-size: 11px; color: var(--text2); background: var(--bg); padding: 8px; border-radius: 6px; overflow: auto; max-height: 180px; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
+  .auto-prompt-btn { padding: 3px 10px; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--accent2); font-size: 11px; cursor: pointer; transition: all 0.2s; }
+  .auto-prompt-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .auto-prompt-btn:disabled { color: var(--text2); cursor: wait; }
   .audio-row { padding: 0 20px 16px; }
   .audio-row > label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; font-weight: 600; }
   .audio-upload { display: flex; align-items: center; gap: 8px; }
@@ -178,13 +181,16 @@
     </div>
     <div class="video-panel hidden" id="videoPanel">
       <div class="panel-header">
-        <h3>Grok Video Generation</h3>
+        <h3>Wan 2.6 Video Generation</h3>
         <button class="close-btn" onclick="closePanel()">&times;</button>
       </div>
       <div class="selected-preview" id="selectedPreview"></div>
       <div class="prompt-area">
-        <label>Prompt</label>
-        <textarea id="promptInput" placeholder="Describe the motion you want..."></textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label style="margin:0">Prompt</label>
+          <button class="auto-prompt-btn" id="autoPromptBtn" onclick="autoGeneratePrompt()">Auto Generate</button>
+        </div>
+        <textarea id="promptInput" placeholder="Write your own or click Auto Generate..."></textarea>
       </div>
       <div class="duration-row">
         <label>Duration</label>
@@ -389,6 +395,37 @@ async function toBase64(url) {
     r.onload = () => resolve(r.result);
     r.readAsDataURL(blob);
   });
+}
+
+async function autoGeneratePrompt() {
+  if (!selectedImage) { alert('Please select an image first'); return; }
+  const btn = document.getElementById('autoPromptBtn');
+  const ta = document.getElementById('promptInput');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  try {
+    const imageBase64 = await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
+    const audioName = document.getElementById('audioName').textContent;
+    const hasAudio = audioName !== 'No file selected';
+    const res = await fetch(`${API_BASE}/api/auto-prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64,
+        audioFileName: hasAudio ? audioName : null,
+      }),
+    });
+    const data = await res.json();
+    if (data.prompt) {
+      ta.value = data.prompt;
+    } else {
+      ta.value = data.error || 'Failed to generate prompt';
+    }
+  } catch (err) {
+    ta.value = 'Error: ' + err.message;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Auto Generate';
 }
 
 function cancelGeneration() {
