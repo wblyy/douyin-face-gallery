@@ -142,6 +142,13 @@
   .history-item { background: var(--bg); border-radius: 8px; padding: 12px; font-size: 12px; }
   .history-item .prompt-text { color: var(--text2); margin-bottom: 8px; font-style: italic; }
   .api-raw { font-size: 11px; color: var(--text2); background: var(--bg); padding: 8px; border-radius: 6px; overflow: auto; max-height: 180px; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
+  .audio-row { padding: 0 20px 16px; }
+  .audio-row > label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; font-weight: 600; }
+  .audio-upload { display: flex; align-items: center; gap: 8px; }
+  .audio-btn { padding: 5px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 12px; cursor: pointer; }
+  .audio-btn:hover { border-color: var(--accent); color: var(--text); }
+  .audio-name { font-size: 12px; color: var(--text2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .audio-clear { background: none; border: none; color: var(--danger); font-size: 16px; cursor: pointer; padding: 0 4px; }
   .cancel-btn { margin: 0 20px 8px; padding: 8px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--danger); font-size: 13px; cursor: pointer; }
   .cancel-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
   ::-webkit-scrollbar { width: 6px; }
@@ -195,6 +202,15 @@
         <button class="dur-btn" data-ratio="4:3">4:3</button>
         <button class="dur-btn" data-ratio="3:4">3:4</button>
       </div>
+      <div class="audio-row">
+        <label>Reference Audio <span style="color:var(--text2);font-weight:normal">(optional)</span></label>
+        <div class="audio-upload">
+          <input type="file" id="audioInput" accept="audio/*" style="display:none" />
+          <button class="audio-btn" id="audioBtn" onclick="document.getElementById('audioInput').click()">Choose Audio File</button>
+          <span class="audio-name" id="audioName">No file selected</span>
+          <button class="audio-clear" id="audioClear" style="display:none" onclick="clearAudio()">&times;</button>
+        </div>
+      </div>
       <button class="gen-btn" id="genBtn" onclick="generateVideo()">Generate Video</button>
       <button class="cancel-btn" id="cancelBtn" style="display:none" onclick="cancelGeneration()">Cancel Generation</button>
       <div class="result-area" id="resultArea"></div>
@@ -212,11 +228,32 @@ let selectedDuration = 5;
 let selectedRatio = '9:16';
 let pollAbort = null; // AbortController for cancelling generation
 
+let audioBase64 = null;
+
 function esc(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
 }
+
+function clearAudio() {
+  audioBase64 = null;
+  document.getElementById('audioInput').value = '';
+  document.getElementById('audioName').textContent = 'No file selected';
+  document.getElementById('audioClear').style.display = 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('audioInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('audioName').textContent = file.name;
+    document.getElementById('audioClear').style.display = 'inline';
+    const reader = new FileReader();
+    reader.onload = () => { audioBase64 = reader.result; };
+    reader.readAsDataURL(file);
+  });
+});
 
 // Duration buttons
 document.querySelectorAll('.duration-row .dur-btn').forEach(btn => {
@@ -390,6 +427,7 @@ async function generateVideo() {
         prompt,
         duration: selectedDuration,
         aspect_ratio: selectedRatio,
+        ...(audioBase64 ? { audioBase64 } : {}),
       }),
     });
 
