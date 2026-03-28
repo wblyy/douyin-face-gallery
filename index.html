@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Douyin Face Gallery + Grok Video</title>
+<style>
+  :root {
+    --bg: #0a0a12;
+    --surface: #13131f;
+    --surface2: #1a1a2e;
+    --border: #2a2a3e;
+    --text: #e0e0e8;
+    --text2: #8888a0;
+    --accent: #6c5ce7;
+    --accent2: #a29bfe;
+    --danger: #ff6b6b;
+    --success: #2ed573;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  .header {
+    padding: 24px 32px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
+  .header .stats { color: var(--text2); font-size: 13px; }
+  .blogger-nav {
+    display: flex;
+    gap: 8px;
+    padding: 16px 32px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    -webkit-overflow-scrolling: touch;
+  }
+  .blogger-tab {
+    padding: 6px 16px;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .blogger-tab:hover { border-color: var(--accent); color: var(--text); }
+  .blogger-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .blogger-tab .count { opacity: 0.7; margin-left: 4px; font-size: 11px; }
+  .main { display: flex; height: calc(100vh - 120px); }
+  .gallery-panel { flex: 1; overflow-y: auto; padding: 24px 32px; }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .thumb {
+    position: relative;
+    aspect-ratio: 9/16;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+    background: var(--surface);
+  }
+  .thumb:hover { border-color: var(--accent2); transform: translateY(-2px); }
+  .thumb.selected { border-color: var(--accent); box-shadow: 0 0 20px rgba(108,92,231,0.3); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .thumb .label {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 4px 8px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+  }
+  .video-panel {
+    width: 420px;
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    overflow-y: auto;
+  }
+  .video-panel.hidden { display: none; }
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-header h3 { font-size: 14px; font-weight: 600; }
+  .close-btn { background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; }
+  .close-btn:hover { color: var(--text); }
+  .selected-preview { padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; }
+  .selected-preview img { width: 80px; height: 142px; object-fit: cover; border-radius: 6px; }
+  .selected-info { flex: 1; font-size: 13px; }
+  .selected-info .blogger-name { font-weight: 600; margin-bottom: 4px; }
+  .selected-info .file-name { color: var(--text2); font-size: 11px; }
+  .prompt-area { padding: 0 20px 16px; }
+  .prompt-area label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+  .prompt-area textarea {
+    width: 100%; height: 80px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 10px 12px; font-size: 13px; resize: vertical; font-family: inherit;
+  }
+  .prompt-area textarea:focus { outline: none; border-color: var(--accent); }
+  .prompt-area textarea::placeholder { color: var(--text2); }
+  .duration-row { padding: 0 20px 16px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .duration-row label { font-size: 12px; color: var(--text2); margin-right: 4px; }
+  .dur-btn {
+    padding: 4px 12px; border-radius: 12px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 12px; cursor: pointer;
+  }
+  .dur-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ratio-row { padding: 0 20px 16px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ratio-row label { font-size: 12px; color: var(--text2); margin-right: 4px; }
+  .gen-btn {
+    margin: 0 20px 16px; padding: 12px; border-radius: 8px;
+    background: var(--accent); border: none; color: #fff;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+  }
+  .gen-btn:hover { background: #5a4bd4; }
+  .gen-btn:disabled { background: var(--surface2); color: var(--text2); cursor: not-allowed; }
+  .result-area { flex: 1; padding: 0 20px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .status-msg { font-size: 13px; color: var(--text2); padding: 12px; background: var(--bg); border-radius: 8px; }
+  .status-msg.error { color: var(--danger); }
+  .status-msg.success { color: var(--success); }
+  .video-container { border-radius: 8px; overflow: hidden; background: #000; }
+  .video-container video { width: 100%; display: block; }
+  .history-item { background: var(--bg); border-radius: 8px; padding: 12px; font-size: 12px; }
+  .history-item .prompt-text { color: var(--text2); margin-bottom: 8px; font-style: italic; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 768px) {
+    .main { flex-direction: column; height: auto; min-height: calc(100vh - 120px); }
+    .gallery-panel { padding: 12px 16px; }
+    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+    .video-panel { width: 100%; border-left: none; border-top: 1px solid var(--border); }
+    .header { padding: 16px; }
+    .header h1 { font-size: 16px; }
+    .blogger-nav { padding: 10px 16px; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>Douyin Face Gallery</h1>
+    <span class="stats" id="stats"></span>
+  </div>
+  <div class="blogger-nav" id="bloggerNav"></div>
+  <div class="main">
+    <div class="gallery-panel">
+      <div class="gallery-grid" id="gallery"></div>
+    </div>
+    <div class="video-panel hidden" id="videoPanel">
+      <div class="panel-header">
+        <h3>Grok Video Generation</h3>
+        <button class="close-btn" onclick="closePanel()">&times;</button>
+      </div>
+      <div class="selected-preview" id="selectedPreview"></div>
+      <div class="prompt-area">
+        <label>Prompt</label>
+        <textarea id="promptInput" placeholder="Describe the motion you want..."></textarea>
+      </div>
+      <div class="duration-row">
+        <label>Duration</label>
+        <button class="dur-btn" data-dur="3">3s</button>
+        <button class="dur-btn active" data-dur="5">5s</button>
+        <button class="dur-btn" data-dur="8">8s</button>
+        <button class="dur-btn" data-dur="10">10s</button>
+        <button class="dur-btn" data-dur="15">15s</button>
+      </div>
+      <div class="ratio-row">
+        <label>Ratio</label>
+        <button class="dur-btn active" data-ratio="9:16">9:16</button>
+        <button class="dur-btn" data-ratio="16:9">16:9</button>
+        <button class="dur-btn" data-ratio="1:1">1:1</button>
+        <button class="dur-btn" data-ratio="4:3">4:3</button>
+        <button class="dur-btn" data-ratio="3:4">3:4</button>
+      </div>
+      <button class="gen-btn" id="genBtn" onclick="generateVideo()">Generate Video</button>
+      <div class="result-area" id="resultArea"></div>
+    </div>
+  </div>
+
+<script>
+// API key loaded from URL hash: #key=YOUR_KEY or localStorage
+const GROK_BASE = 'https://api.x.ai';
+let GROK_KEY = '';
+
+function loadKey() {
+  const hash = window.location.hash;
+  if (hash.startsWith('#key=')) {
+    GROK_KEY = hash.slice(5);
+    localStorage.setItem('grok_key', GROK_KEY);
+    history.replaceState(null, '', window.location.pathname);
+    return;
+  }
+  GROK_KEY = localStorage.getItem('grok_key') || '';
+}
+loadKey();
+
+let bloggers = [];
+let activeBlogger = null;
+let selectedImage = null;
+let selectedDuration = 5;
+let selectedRatio = '9:16';
+
+// Duration buttons
+document.querySelectorAll('.duration-row .dur-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.duration-row .dur-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedDuration = parseInt(btn.dataset.dur);
+  });
+});
+document.querySelectorAll('.ratio-row .dur-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.ratio-row .dur-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedRatio = btn.dataset.ratio;
+  });
+});
+
+async function init() {
+  const res = await fetch('data.json');
+  bloggers = await res.json();
+  const totalImages = bloggers.reduce((s, b) => s + b.images.length, 0);
+  document.getElementById('stats').textContent = `${bloggers.length} bloggers / ${totalImages} frames`;
+  renderNav();
+  if (bloggers.length > 0) selectBlogger(bloggers[0].id);
+}
+
+function renderNav() {
+  const nav = document.getElementById('bloggerNav');
+  nav.innerHTML = `<button class="blogger-tab" data-name="__all__" onclick="selectBlogger('__all__')">
+    All<span class="count">${bloggers.reduce((s,b) => s + b.images.length, 0)}</span>
+  </button>`;
+  bloggers.forEach(b => {
+    nav.innerHTML += `<button class="blogger-tab" data-name="${b.id}" onclick="selectBlogger(${b.id})">
+      ${b.name}<span class="count">${b.images.length}</span>
+    </button>`;
+  });
+}
+
+function selectBlogger(id) {
+  activeBlogger = id;
+  document.querySelectorAll('.blogger-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.name === String(id));
+  });
+  renderGallery();
+}
+
+function thumbUrl(bid, fname) {
+  return `thumbs/${bid}/${fname}`;
+}
+function fullUrl(bid, fname) {
+  return `faces/${bid}/${fname}`;
+}
+
+function renderGallery() {
+  const grid = document.getElementById('gallery');
+  grid.innerHTML = '';
+  const list = activeBlogger === '__all__' ? bloggers : bloggers.filter(b => b.id === activeBlogger);
+  list.forEach(b => {
+    b.images.forEach(img => {
+      const div = document.createElement('div');
+      div.className = 'thumb';
+      if (selectedImage && selectedImage.bloggerId === b.id && selectedImage.filename === img) {
+        div.classList.add('selected');
+      }
+      div.innerHTML = `
+        <img src="${thumbUrl(b.id, img)}" loading="lazy" />
+        <div class="label">${b.name} / ${img}</div>
+      `;
+      div.addEventListener('click', () => selectImage(b.id, b.name, img, div));
+      grid.appendChild(div);
+    });
+  });
+}
+
+function selectImage(bloggerId, bloggerName, filename, el) {
+  selectedImage = { bloggerId, bloggerName, filename };
+  document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
+  el.classList.add('selected');
+  const panel = document.getElementById('videoPanel');
+  panel.classList.remove('hidden');
+  document.getElementById('selectedPreview').innerHTML = `
+    <img src="${thumbUrl(bloggerId, filename)}" />
+    <div class="selected-info">
+      <div class="blogger-name">${bloggerName}</div>
+      <div class="file-name">${filename}</div>
+    </div>
+  `;
+}
+
+function closePanel() {
+  document.getElementById('videoPanel').classList.add('hidden');
+  selectedImage = null;
+  document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
+}
+
+async function toBase64(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.readAsDataURL(blob);
+  });
+}
+
+async function generateVideo() {
+  if (!selectedImage) return;
+  const prompt = document.getElementById('promptInput').value.trim();
+  if (!prompt) { alert('Please enter a prompt'); return; }
+  if (!GROK_KEY) {
+    const k = window.prompt('Enter your Grok API key:');
+    if (!k) return;
+    GROK_KEY = k;
+    localStorage.setItem('grok_key', GROK_KEY);
+  }
+
+  const btn = document.getElementById('genBtn');
+  const area = document.getElementById('resultArea');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  area.innerHTML = '<div class="status-msg">Reading image and sending to Grok API...</div>';
+
+  try {
+    area.innerHTML = '<div class="status-msg">Loading full-res image for Grok...</div>';
+    const b64 = await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
+    area.innerHTML = '<div class="status-msg">Sending to Grok API...</div>';
+
+    const genRes = await fetch(`${GROK_BASE}/v1/videos/generations`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROK_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'grok-imagine-video',
+        prompt,
+        duration: selectedDuration,
+        aspect_ratio: selectedRatio,
+        image: { url: b64, type: 'base64' },
+      }),
+    });
+
+    const genData = await genRes.json();
+    if (!genData.request_id) {
+      throw new Error(JSON.stringify(genData).slice(0, 200));
+    }
+
+    area.innerHTML = '<div class="status-msg">Request submitted, polling...</div>';
+    pollVideo(genData.request_id, prompt);
+  } catch (err) {
+    area.innerHTML = `<div class="status-msg error">${err.message}</div>`;
+    btn.disabled = false;
+    btn.textContent = 'Generate Video';
+  }
+}
+
+async function pollVideo(requestId, prompt) {
+  const area = document.getElementById('resultArea');
+  const btn = document.getElementById('genBtn');
+  let attempts = 0;
+  const maxAttempts = 120;
+  let consecutiveErrors = 0;
+
+  const poll = async () => {
+    attempts++;
+    if (attempts > maxAttempts) {
+      area.innerHTML = `<div class="status-msg error">Timeout after ${maxAttempts * 3}s</div>`;
+      btn.disabled = false; btn.textContent = 'Generate Video';
+      return;
+    }
+    try {
+      const res = await fetch(`${GROK_BASE}/v1/videos/${requestId}`, {
+        headers: { 'Authorization': `Bearer ${GROK_KEY}` },
+      });
+      const d = await res.json();
+      consecutiveErrors = 0;
+
+      if (d.status === 'done' || d.status === 'completed' || d.state === 'completed') {
+        let videoUrl = null;
+        if (d.video?.url) videoUrl = d.video.url;
+        else if (d.video_url) videoUrl = d.video_url;
+        else if (d.data?.[0]?.url) videoUrl = d.data[0].url;
+        else if (d.results?.[0]?.url) videoUrl = d.results[0].url;
+
+        if (videoUrl) {
+          area.innerHTML = `
+            <div class="status-msg success">Video generated in ${attempts * 3}s</div>
+            <div class="video-container">
+              <video src="${videoUrl}" controls autoplay loop playsinline></video>
+            </div>
+            <div class="history-item"><div class="prompt-text">"${prompt}"</div></div>
+          `;
+        } else {
+          area.innerHTML = `<div class="status-msg success">Done but no video URL</div>
+            <pre style="font-size:11px;color:var(--text2);overflow:auto;max-height:200px">${JSON.stringify(d, null, 2)}</pre>`;
+        }
+        btn.disabled = false; btn.textContent = 'Generate Video';
+        return;
+      }
+
+      if (d.status === 'failed' || d.state === 'failed') {
+        area.innerHTML = `<div class="status-msg error">Failed: ${d.error || d.message || 'unknown'}</div>`;
+        btn.disabled = false; btn.textContent = 'Generate Video';
+        return;
+      }
+
+      const pct = d.progress ? ` ${d.progress}%` : '';
+      area.innerHTML = `<div class="status-msg">Generating...${pct} (${attempts * 3}s elapsed)</div>`;
+      setTimeout(poll, 3000);
+    } catch (err) {
+      consecutiveErrors++;
+      if (consecutiveErrors >= 30) {
+        area.innerHTML = `<div class="status-msg error">Poll errors: ${err.message}</div>`;
+        btn.disabled = false; btn.textContent = 'Generate Video';
+        return;
+      }
+      area.innerHTML = `<div class="status-msg">Retrying... (${err.message})</div>`;
+      setTimeout(poll, 3000);
+    }
+  };
+  setTimeout(poll, 3000);
+}
+
+init();
+</script>
+</body>
+</html>
