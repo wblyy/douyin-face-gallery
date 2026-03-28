@@ -141,6 +141,9 @@
   .video-container video { width: 100%; display: block; }
   .history-item { background: var(--bg); border-radius: 8px; padding: 12px; font-size: 12px; }
   .history-item .prompt-text { color: var(--text2); margin-bottom: 8px; font-style: italic; }
+  .api-raw { font-size: 11px; color: var(--text2); background: var(--bg); padding: 8px; border-radius: 6px; overflow: auto; max-height: 180px; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
+  .cancel-btn { margin: 0 20px 8px; padding: 8px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--danger); font-size: 13px; cursor: pointer; }
+  .cancel-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -193,6 +196,7 @@
         <button class="dur-btn" data-ratio="3:4">3:4</button>
       </div>
       <button class="gen-btn" id="genBtn" onclick="generateVideo()">Generate Video</button>
+      <button class="cancel-btn" id="cancelBtn" style="display:none" onclick="cancelGeneration()">Cancel Generation</button>
       <div class="result-area" id="resultArea"></div>
     </div>
   </div>
@@ -206,6 +210,13 @@ let activeBlogger = null;
 let selectedImage = null;
 let selectedDuration = 5;
 let selectedRatio = '9:16';
+let pollAbort = null; // AbortController for cancelling generation
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
 
 // Duration buttons
 document.querySelectorAll('.duration-row .dur-btn').forEach(btn => {
@@ -343,15 +354,28 @@ async function toBase64(url) {
   });
 }
 
+function cancelGeneration() {
+  if (pollAbort) { pollAbort.abort(); pollAbort = null; }
+  const btn = document.getElementById('genBtn');
+  btn.disabled = false;
+  btn.textContent = 'Generate Video';
+  document.getElementById('cancelBtn').style.display = 'none';
+  document.getElementById('resultArea').innerHTML = '<div class="status-msg">Cancelled</div>';
+}
+
 async function generateVideo() {
   if (!selectedImage) return;
   const prompt = document.getElementById('promptInput').value.trim();
   if (!prompt) { alert('Please enter a prompt'); return; }
 
+  if (pollAbort) { pollAbort.abort(); }
+  pollAbort = new AbortController();
+
   const btn = document.getElementById('genBtn');
   const area = document.getElementById('resultArea');
   btn.disabled = true;
   btn.textContent = 'Submitting...';
+  document.getElementById('cancelBtn').style.display = 'block';
 
   try {
     area.innerHTML = '<div class="status-msg">Loading full-res image...</div>';
@@ -370,27 +394,36 @@ async function generateVideo() {
     });
 
     const genData = await genRes.json();
+    area.innerHTML = `<div class="status-msg">Submit response:</div>
+      <pre class="api-raw">${esc(JSON.stringify(genData, null, 2))}</pre>`;
     if (!genData.success) {
-      throw new Error(genData.error || JSON.stringify(genData).slice(0, 200));
+      throw new Error(genData.error || JSON.stringify(genData).slice(0, 500));
     }
 
-    area.innerHTML = '<div class="status-msg">Request submitted, polling...</div>';
     pollVideo(genData.request_id, prompt);
   } catch (err) {
-    area.innerHTML = `<div class="status-msg error">${err.message}</div>`;
-    btn.disabled = false;
-    btn.textContent = 'Generate Video';
+    area.innerHTML += `<div class="status-msg error">${esc(err.message)}</div>`;
+    finishGen();
   }
+}
+
+function finishGen() {
+  document.getElementById('genBtn').disabled = false;
+  document.getElementById('genBtn').textContent = 'Generate Video';
+  document.getElementById('cancelBtn').style.display = 'none';
+  pollAbort = null;
 }
 
 async function pollVideo(requestId, prompt) {
   const area = document.getElementById('resultArea');
   const btn = document.getElementById('genBtn');
+  const signal = pollAbort?.signal;
   let attempts = 0;
   const maxAttempts = 120;
   let consecutiveErrors = 0;
 
   const poll = async () => {
+    if (signal?.aborted) return;
     attempts++;
     if (attempts > maxAttempts) {
       area.innerHTML = `<div class="status-msg error">Timeout after ${maxAttempts * 3}s</div>`;
@@ -403,6 +436,8 @@ async function pollVideo(requestId, prompt) {
       const d = json.data;
       consecutiveErrors = 0;
 
+      const raw = JSON.stringify(d, null, 2);
+
       if (d.status === 'done' || d.status === 'completed' || d.state === 'completed') {
         let videoUrl = null;
         if (d.video?.url) videoUrl = d.video.url;
@@ -412,37 +447,41 @@ async function pollVideo(requestId, prompt) {
 
         if (videoUrl) {
           area.innerHTML = `
-            <div class="status-msg success">Video generated in ${attempts * 3}s</div>
+            <div class="status-msg success">Video ready (${attempts * 3}s)</div>
             <div class="video-container">
               <video src="${videoUrl}" controls autoplay loop playsinline></video>
             </div>
-            <div class="history-item"><div class="prompt-text">"${prompt}"</div></div>
+            <div class="history-item"><div class="prompt-text">"${esc(prompt)}"</div></div>
+            <details><summary style="font-size:11px;color:var(--text2);cursor:pointer">API Response</summary>
+              <pre class="api-raw">${esc(raw)}</pre></details>
           `;
         } else {
-          area.innerHTML = `<div class="status-msg success">Done but no video URL</div>
-            <pre style="font-size:11px;color:var(--text2);overflow:auto;max-height:200px">${JSON.stringify(d, null, 2)}</pre>`;
+          area.innerHTML = `<div class="status-msg success">Done but no video URL found</div>
+            <pre class="api-raw">${esc(raw)}</pre>`;
         }
-        btn.disabled = false; btn.textContent = 'Generate Video';
+        finishGen();
         return;
       }
 
       if (d.status === 'failed' || d.state === 'failed') {
-        area.innerHTML = `<div class="status-msg error">Failed: ${d.error || d.message || 'unknown'}</div>`;
-        btn.disabled = false; btn.textContent = 'Generate Video';
+        area.innerHTML = `<div class="status-msg error">Failed</div>
+          <pre class="api-raw">${esc(raw)}</pre>`;
+        finishGen();
         return;
       }
 
       const pct = d.progress ? ` ${d.progress}%` : '';
-      area.innerHTML = `<div class="status-msg">Generating...${pct} (${attempts * 3}s elapsed)</div>`;
+      area.innerHTML = `<div class="status-msg">Generating...${pct} (${attempts * 3}s)</div>
+        <pre class="api-raw">${esc(raw)}</pre>`;
       setTimeout(poll, 3000);
     } catch (err) {
       consecutiveErrors++;
       if (consecutiveErrors >= 30) {
-        area.innerHTML = `<div class="status-msg error">Poll errors: ${err.message}</div>`;
-        btn.disabled = false; btn.textContent = 'Generate Video';
+        area.innerHTML = `<div class="status-msg error">Poll failed after 30 retries: ${esc(err.message)}</div>`;
+        finishGen();
         return;
       }
-      area.innerHTML = `<div class="status-msg">Retrying... (${err.message})</div>`;
+      area.innerHTML = `<div class="status-msg">Retry ${consecutiveErrors}/30: ${esc(err.message)}</div>`;
       setTimeout(poll, 3000);
     }
   };
