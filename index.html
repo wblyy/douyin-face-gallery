@@ -395,63 +395,28 @@ renderHistory();
 async function extendVideo(idx) {
   const h = videoHistory[idx]; if (!h?.videoUrl) return;
   const vStatus = document.getElementById('videoStatus');
-  vStatus.textContent = 'Extracting last frame...'; vStatus.style.color = 'var(--text2)';
+  vStatus.textContent = 'Setting up extend...'; vStatus.style.color = 'var(--text2)';
   try {
-    // Try to extract last frame from video via canvas
-    // Atlas video URLs often lack CORS headers, so we try without crossOrigin first
-    let frameBase64 = null;
-    try {
-      const vid = document.createElement('video');
-      vid.preload = 'auto'; vid.muted = true;
-      vid.src = h.videoUrl;
-      await new Promise((ok, fail) => {
-        vid.onloadedmetadata = ok;
-        vid.onerror = () => fail(new Error('Video load failed'));
-        setTimeout(() => fail(new Error('Video load timeout')), 8000);
-      });
-      vid.currentTime = Math.max(0, vid.duration - 0.1);
-      await new Promise((ok) => { vid.onseeked = ok; });
-      const canvas = document.createElement('canvas');
-      canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
-      canvas.getContext('2d').drawImage(vid, 0, 0);
-      frameBase64 = canvas.toDataURL('image/jpeg', 0.9);
-    } catch (frameErr) {
-      console.warn('[extend] frame extraction failed:', frameErr.message, '— using original thumbnail');
-    }
-
-    // Fallback: if frame extraction failed, use the original source image thumbnail
-    let useThumb = false;
-    if (!frameBase64 || frameBase64 === 'data:,') {
-      if (h.thumb) {
-        // Fetch the thumbnail and convert to base64
-        try {
-          const thumbResp = await fetch(h.thumb);
-          const blob = await thumbResp.blob();
-          frameBase64 = await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
-          useThumb = true;
-        } catch { frameBase64 = null; }
+    // Use the original source image (h.thumb) as input for continuation
+    // Frame extraction from cross-origin video is unreliable (Atlas CDN has no CORS)
+    // The continuation prompt handles plot progression — same face image is fine
+    if (h.thumb) {
+      // h.thumb is a URL — if it matches a currently selected image or custom image, reselect it
+      // Otherwise select it as the image URL directly for generation
+      const existingCustom = customImages.find(c => c.url === h.thumb);
+      if (existingCustom) {
+        await pickCustom(existingCustom);
+      } else {
+        // Set selectedImage directly with the thumb URL
+        selectedImage = { customUrl: h.thumb, customBase64: null, bloggerName: 'Extend', filename: 'extend-source.jpg' };
+        showPreview(h.thumb, 'Extend', 'Source image from previous video');
       }
+    } else if (selectedImage) {
+      // No thumb saved — keep whatever image is currently selected
+      vStatus.textContent = 'No source image saved — using current selection';
+    } else {
+      throw new Error('No source image available. Select an image first, then use Extend.');
     }
-
-    if (!frameBase64 || frameBase64 === 'data:,') {
-      throw new Error('Cannot extract frame or load thumbnail. Try using the same source image manually.');
-    }
-
-    // Upload frame/thumbnail as custom image
-    vStatus.textContent = useThumb ? 'Using source image...' : 'Uploading last frame...';
-    const upRes = await fetch(`${API_BASE}/api/upload-image`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64: frameBase64 }),
-    });
-    const upData = await upRes.json();
-    if (!upData.success) throw new Error(upData.error || 'Upload failed');
-
-    // Add to custom images and select it via pickCustom (url already set, won't re-upload)
-    const customUrl = `${API_BASE}/uploads/${upData.filename}`;
-    const img = { id: Date.now()+'_ext', base64: frameBase64, url: customUrl, name: useThumb ? 'extend-source.jpg' : 'extend-frame.jpg' };
-    customImages.push(img);
-    renderCustom();
-    await pickCustom(img);
 
     // Generate continuation prompt based on previous
     const ta = document.getElementById('promptTA');
