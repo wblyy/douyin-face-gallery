@@ -3,723 +3,512 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Douyin Face Gallery + Wan Spicy Video</title>
+<title>Wan Spicy Video Generator</title>
 <style>
   :root {
-    --bg: #0a0a12;
-    --surface: #13131f;
-    --surface2: #1a1a2e;
-    --border: #2a2a3e;
-    --text: #e0e0e8;
-    --text2: #8888a0;
-    --accent: #6c5ce7;
-    --accent2: #a29bfe;
-    --danger: #ff6b6b;
-    --success: #2ed573;
+    --bg: #0a0a12; --surface: #13131f; --surface2: #1a1a2e;
+    --border: #2a2a3e; --text: #e0e0e8; --text2: #8888a0;
+    --accent: #6c5ce7; --accent2: #a29bfe; --danger: #ff6b6b; --success: #2ed573;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: var(--bg);
-    color: var(--text);
+    background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    height: 100vh; overflow: hidden;
   }
-  .header {
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
-  }
-  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.5px; }
-  .header .stats { color: var(--text2); font-size: 12px; }
-  .blogger-nav {
-    display: flex;
-    gap: 6px;
-    padding: 8px 24px;
-    overflow-x: auto;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-    -webkit-overflow-scrolling: touch;
-  }
-  .blogger-tab {
-    padding: 4px 12px;
-    border-radius: 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text2);
-    font-size: 12px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s;
-  }
-  .blogger-tab:hover { border-color: var(--accent); color: var(--text); }
-  .blogger-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .blogger-tab .count { opacity: 0.7; margin-left: 3px; font-size: 10px; }
 
-  /* Top: gallery (40%), Bottom: video panel (60%) */
-  .gallery-section {
-    height: 38vh;
-    min-height: 160px;
-    overflow-y: auto;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border);
+  /* Three-column layout */
+  .app { display: flex; height: 100vh; }
+
+  /* COL 1: Image selection */
+  .col-images {
+    width: 220px; min-width: 180px; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0;
   }
+  .col-images .col-header {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: 600; color: var(--accent2);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .upload-btn {
+    padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--accent2);
+  }
+  .upload-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* Custom uploads strip */
+  .custom-strip {
+    display: flex; gap: 4px; padding: 6px 8px; overflow-x: auto;
+    border-bottom: 1px solid var(--border); min-height: 0; flex-shrink: 0;
+  }
+  .custom-strip:empty { display: none; }
+  .custom-thumb {
+    width: 36px; height: 64px; border-radius: 4px; overflow: hidden; cursor: pointer;
+    border: 2px solid transparent; flex-shrink: 0; position: relative; background: var(--surface);
+  }
+  .custom-thumb:hover { border-color: var(--accent2); }
+  .custom-thumb.selected { border-color: var(--accent); }
+  .custom-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .custom-thumb .x {
+    position: absolute; top: -1px; right: -1px; width: 12px; height: 12px;
+    background: var(--danger); color: #fff; border: none; border-radius: 50%;
+    font-size: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .custom-thumb:hover .x { opacity: 1; }
+
+  /* Blogger tabs */
+  .blogger-tabs {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 8px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .btab {
+    padding: 2px 8px; border-radius: 10px; font-size: 10px; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text2);
+  }
+  .btab:hover { border-color: var(--accent); color: var(--text); }
+  .btab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btab .cnt { opacity: 0.6; margin-left: 2px; font-size: 9px; }
+
+  /* Gallery grid */
+  .gallery-scroll { flex: 1; overflow-y: auto; padding: 6px 8px; }
   .gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: 8px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 4px;
   }
   .thumb {
-    position: relative;
-    aspect-ratio: 9/16;
-    border-radius: 6px;
-    overflow: hidden;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: all 0.2s;
-    background: var(--surface);
+    aspect-ratio: 9/16; border-radius: 4px; overflow: hidden; cursor: pointer;
+    border: 2px solid transparent; background: var(--surface); transition: all 0.15s;
   }
-  .thumb:hover { border-color: var(--accent2); transform: translateY(-1px); }
-  .thumb.selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(108,92,231,0.3); }
+  .thumb:hover { border-color: var(--accent2); }
+  .thumb.selected { border-color: var(--accent); box-shadow: 0 0 8px rgba(108,92,231,0.3); }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .thumb .label {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    padding: 2px 6px;
-    background: linear-gradient(transparent, rgba(0,0,0,0.8));
-    font-size: 9px;
-    color: rgba(255,255,255,0.7);
-  }
 
-  /* Bottom video panel */
-  .video-section {
-    flex: 1;
-    display: none;
-    overflow: hidden;
-    background: var(--surface);
+  /* COL 2: Controls */
+  .col-controls {
+    width: 320px; min-width: 280px; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0; background: var(--surface);
   }
-  .video-section.active { display: flex; }
-  .video-section-inner {
-    display: flex;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+  .col-controls .col-header {
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: 600; color: var(--accent2);
   }
-  /* Left: controls (compact) */
-  .controls-col {
-    width: 340px;
-    min-width: 300px;
-    padding: 10px 14px;
-    overflow-y: auto;
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-  /* Right: result (takes remaining space) */
-  .result-col {
-    flex: 1;
-    padding: 10px 14px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+  .controls-body { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
 
-  .panel-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  .preview-row { display: flex; gap: 8px; align-items: flex-start; }
+  .preview-row img { width: 48px; height: 85px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); }
+  .preview-info { flex: 1; font-size: 11px; }
+  .preview-info .name { font-weight: 600; margin-bottom: 2px; }
+  .preview-info .file { color: var(--text2); font-size: 10px; }
+
+  .section-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .prompt-header { display: flex; align-items: center; justify-content: space-between; }
+  .auto-btn {
+    padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--accent2);
   }
-  .panel-title h3 { font-size: 13px; font-weight: 600; color: var(--accent2); }
-  .close-btn { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; }
-  .close-btn:hover { color: var(--text); }
+  .auto-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .auto-btn:disabled { color: var(--text2); cursor: wait; }
 
-  .selected-preview { display: flex; gap: 10px; align-items: flex-start; }
-  .selected-preview img { width: 56px; height: 100px; object-fit: cover; border-radius: 4px; }
-  .selected-info { flex: 1; font-size: 12px; }
-  .selected-info .blogger-name { font-weight: 600; margin-bottom: 2px; }
-  .selected-info .file-name { color: var(--text2); font-size: 10px; }
-
-  .prompt-section label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; }
-  .prompt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-  .prompt-header label { margin: 0; }
-  .auto-prompt-btn { padding: 2px 8px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border); color: var(--accent2); font-size: 10px; cursor: pointer; transition: all 0.2s; }
-  .auto-prompt-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .auto-prompt-btn:disabled { color: var(--text2); cursor: wait; }
-
-  /* Version tabs */
-  .version-tabs { display: flex; gap: 4px; margin-bottom: 4px; }
-  .version-tab {
-    padding: 3px 10px; border-radius: 4px; font-size: 10px; cursor: pointer;
+  .ver-tabs { display: flex; gap: 3px; }
+  .ver-tab {
+    padding: 2px 8px; border-radius: 3px; font-size: 10px; cursor: pointer;
     background: var(--bg); border: 1px solid var(--border); color: var(--text2);
-    transition: all 0.2s;
   }
-  .version-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .version-tab:hover:not(.active) { border-color: var(--accent2); color: var(--text); }
+  .ver-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ver-tab:hover:not(.active) { border-color: var(--accent2); }
 
-  .prompt-section textarea {
-    width: 100%; height: 70px;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    color: var(--text); padding: 8px 10px; font-size: 12px; resize: vertical; font-family: inherit;
+  .prompt-ta {
+    width: 100%; height: 80px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); padding: 8px; font-size: 11px;
+    resize: vertical; font-family: inherit;
   }
-  .prompt-section textarea:focus { outline: none; border-color: var(--accent); }
-  .prompt-section textarea::placeholder { color: var(--text2); }
+  .prompt-ta:focus { outline: none; border-color: var(--accent); }
+  .prompt-ta::placeholder { color: var(--text2); }
 
   .cn-box {
-    display: none; margin-top: 4px; padding: 6px 8px;
-    background: var(--surface2); border-radius: 4px; font-size: 11px;
-    color: var(--text2); line-height: 1.4; border: 1px solid var(--border);
-    max-height: 80px; overflow-y: auto;
+    display: none; padding: 6px 8px; background: var(--bg); border-radius: 4px;
+    font-size: 10px; color: var(--text2); line-height: 1.4; max-height: 60px; overflow-y: auto;
   }
-  .cn-box .cn-label { font-size: 9px; color: var(--accent2); font-weight: 600; margin-right: 4px; }
+  .cn-label { font-size: 9px; color: var(--accent2); font-weight: 600; margin-right: 3px; }
 
-  .controls-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
-  .controls-row label { font-size: 11px; color: var(--text2); margin-right: 2px; }
-  .dur-btn {
-    padding: 3px 10px; border-radius: 10px;
-    background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 11px; cursor: pointer;
+  .param-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .param-row .lbl { font-size: 10px; color: var(--text2); min-width: 48px; }
+  .pbtn {
+    padding: 2px 8px; border-radius: 8px; font-size: 10px; cursor: pointer;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text2);
   }
-  .dur-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
   .gen-btn {
-    padding: 10px; border-radius: 6px;
-    background: var(--accent); border: none; color: #fff;
-    font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+    padding: 10px; border-radius: 6px; background: var(--accent); border: none;
+    color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; flex-shrink: 0;
   }
   .gen-btn:hover { background: #5a4bd4; }
   .gen-btn:disabled { background: var(--surface2); color: var(--text2); cursor: not-allowed; }
   .cancel-btn {
     padding: 6px; border-radius: 6px; background: var(--surface2);
-    border: 1px solid var(--border); color: var(--danger); font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border); color: var(--danger); font-size: 11px; cursor: pointer;
+    flex-shrink: 0;
   }
-  .cancel-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .cancel-btn:hover { background: var(--danger); color: #fff; }
 
-  .status-msg { font-size: 12px; color: var(--text2); padding: 10px; background: var(--bg); border-radius: 6px; }
-  .status-msg.error { color: var(--danger); }
-  .status-msg.success { color: var(--success); }
-  .video-container { border-radius: 6px; overflow: hidden; background: #000; display: flex; justify-content: center; flex: 1; min-height: 0; }
-  .video-container video { max-width: 100%; max-height: 70vh; display: block; object-fit: contain; }
-  .api-raw { font-size: 10px; color: var(--text2); background: var(--bg); padding: 6px; border-radius: 4px; overflow: auto; max-height: 150px; white-space: pre-wrap; word-break: break-all; }
-  .history-item { background: var(--bg); border-radius: 6px; padding: 8px; font-size: 11px; }
-  .history-item .prompt-text { color: var(--text2); margin-bottom: 6px; font-style: italic; }
+  /* COL 3: Video playback */
+  .col-video {
+    flex: 1; display: flex; flex-direction: column; background: #000; min-width: 0;
+  }
+  .col-video .col-header {
+    padding: 8px 12px; border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--text2); background: var(--surface);
+    flex-shrink: 0;
+  }
+  .video-body {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 8px; overflow: hidden; min-height: 0;
+  }
+  .video-body video {
+    max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px;
+  }
+  .video-body .placeholder {
+    color: var(--text2); font-size: 13px; text-align: center; padding: 40px;
+  }
+  .video-footer {
+    flex-shrink: 0; max-height: 30vh; overflow-y: auto; background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .video-footer:empty { display: none; }
+  .status-bar {
+    padding: 6px 12px; font-size: 11px; color: var(--text2); background: var(--surface);
+    border-top: 1px solid var(--border); flex-shrink: 0;
+  }
+  .status-bar.error { color: var(--danger); }
+  .status-bar.success { color: var(--success); }
+  .api-raw {
+    font-size: 9px; color: var(--text2); background: var(--bg); padding: 6px;
+    border-radius: 4px; overflow: auto; max-height: 120px; white-space: pre-wrap;
+    word-break: break-all; margin: 4px 12px 8px;
+  }
 
-  .placeholder-msg { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text2); font-size: 13px; padding: 40px; text-align: center; }
-
-  .upload-strip {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-  }
-  .upload-strip label { font-size: 11px; color: var(--text2); }
-  .upload-btn {
-    padding: 3px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
-    background: var(--surface2); border: 1px solid var(--border); color: var(--accent2);
-    transition: all 0.2s;
-  }
-  .upload-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .custom-thumbs { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
-  .custom-thumb {
-    width: 40px; height: 70px; border-radius: 4px; overflow: hidden; cursor: pointer;
-    border: 2px solid transparent; flex-shrink: 0; position: relative; background: var(--surface);
-  }
-  .custom-thumb:hover { border-color: var(--accent2); }
-  .custom-thumb.selected { border-color: var(--accent); box-shadow: 0 0 8px rgba(108,92,231,0.3); }
-  .custom-thumb img { width: 100%; height: 100%; object-fit: cover; }
-  .custom-thumb .remove-btn {
-    position: absolute; top: -2px; right: -2px; width: 14px; height: 14px;
-    background: var(--danger); color: #fff; border: none; border-radius: 50%;
-    font-size: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.2s;
-  }
-  .custom-thumb:hover .remove-btn { opacity: 1; }
-
-  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-  @media (max-width: 768px) {
-    .gallery-section { height: 30vh; padding: 8px 12px; }
-    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
-    .video-section-inner { flex-direction: column; }
-    .controls-col, .result-col { width: 100%; border-right: none; }
-    .controls-col { border-bottom: 1px solid var(--border); max-height: 50%; }
-    .header { padding: 8px 12px; }
-    .blogger-nav { padding: 6px 12px; }
+  @media (max-width: 900px) {
+    .app { flex-direction: column; overflow-y: auto; }
+    .col-images { width: 100%; height: 30vh; border-right: none; border-bottom: 1px solid var(--border); }
+    .col-controls { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    .col-video { min-height: 50vh; }
   }
 </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Douyin Face Gallery</h1>
-    <span class="stats" id="stats"></span>
-  </div>
-  <div class="blogger-nav" id="bloggerNav"></div>
-  <div class="upload-strip">
-    <label>Custom</label>
-    <button class="upload-btn" onclick="document.getElementById('customImageInput').click()">+ Upload Image</button>
-    <input type="file" id="customImageInput" accept="image/*" multiple style="display:none" />
-    <div class="custom-thumbs" id="customThumbs"></div>
-  </div>
-  <div class="gallery-section">
-    <div class="gallery-grid" id="gallery"></div>
-  </div>
-  <div class="video-section" id="videoSection">
-    <div class="video-section-inner">
-      <div class="controls-col">
-        <div class="panel-title">
-          <h3>Wan 2.2 Turbo Spicy (LoRA i2v)</h3>
-          <button class="close-btn" onclick="closePanel()">&times;</button>
-        </div>
-        <div class="selected-preview" id="selectedPreview"></div>
-        <div class="prompt-section">
-          <div class="prompt-header">
-            <label>Prompt</label>
-            <button class="auto-prompt-btn" id="autoPromptBtn" onclick="autoGeneratePrompt()">Auto Generate</button>
-          </div>
-          <div class="version-tabs" id="versionTabs" style="display:none">
-            <div class="version-tab active" data-ver="0" onclick="selectVersion(0)">A: Undressing</div>
-            <div class="version-tab" data-ver="1" onclick="selectVersion(1)">B: Nude Display</div>
-          </div>
-          <textarea id="promptInput" placeholder="Select an image, then click Auto Generate or type your own prompt..."></textarea>
-          <div class="cn-box" id="promptCnBox">
-            <span class="cn-label">CN</span>
-            <span id="promptCnText"></span>
-          </div>
-        </div>
-        <div class="controls-row">
-          <label>Duration</label>
-          <button class="dur-btn" data-dur="3">3s</button>
-          <button class="dur-btn active" data-dur="5">5s</button>
-          <button class="dur-btn" data-dur="8">8s</button>
-          <button class="dur-btn" data-dur="10">10s</button>
-          <button class="dur-btn" data-dur="15">15s</button>
-        </div>
-        <div class="controls-row">
-          <label>Ratio</label>
-          <button class="dur-btn active" data-ratio="9:16">9:16</button>
-          <button class="dur-btn" data-ratio="16:9">16:9</button>
-          <button class="dur-btn" data-ratio="1:1">1:1</button>
-          <button class="dur-btn" data-ratio="4:3">4:3</button>
-          <button class="dur-btn" data-ratio="3:4">3:4</button>
-        </div>
-        <button class="gen-btn" id="genBtn" onclick="generateVideo()">Generate Video</button>
-        <button class="cancel-btn" id="cancelBtn" style="display:none" onclick="cancelGeneration()">Cancel Generation</button>
-      </div>
-      <div class="result-col" id="resultArea">
-        <div class="placeholder-msg">Select an image and generate a video. Results will appear here.</div>
-      </div>
+<div class="app">
+  <!-- COL 1: Images -->
+  <div class="col-images">
+    <div class="col-header">
+      <span>Images</span>
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">+ Upload</button>
+      <input type="file" id="fileInput" accept="image/*" multiple style="display:none" />
+    </div>
+    <div class="custom-strip" id="customStrip"></div>
+    <div class="blogger-tabs" id="bloggerTabs"></div>
+    <div class="gallery-scroll">
+      <div class="gallery-grid" id="gallery"></div>
     </div>
   </div>
+
+  <!-- COL 2: Controls -->
+  <div class="col-controls">
+    <div class="col-header">Wan 2.2 Turbo Spicy (LoRA i2v)</div>
+    <div class="controls-body">
+      <div class="preview-row" id="previewRow" style="display:none">
+        <img id="previewImg" />
+        <div class="preview-info">
+          <div class="name" id="previewName"></div>
+          <div class="file" id="previewFile"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="prompt-header">
+          <span class="section-label">Prompt</span>
+          <button class="auto-btn" id="autoBtn" onclick="autoPrompt()">Auto Generate</button>
+        </div>
+        <div class="ver-tabs" id="verTabs" style="display:none;margin:4px 0"></div>
+        <textarea class="prompt-ta" id="promptTA" placeholder="Select image, then Auto Generate or type..."></textarea>
+        <div class="cn-box" id="cnBox"><span class="cn-label">CN</span><span id="cnText"></span></div>
+      </div>
+
+      <div>
+        <div class="param-row">
+          <span class="lbl">Duration</span>
+          <button class="pbtn" data-dur="3">3s</button>
+          <button class="pbtn active" data-dur="5">5s</button>
+          <button class="pbtn" data-dur="8">8s</button>
+          <button class="pbtn" data-dur="10">10s</button>
+          <button class="pbtn" data-dur="15">15s</button>
+        </div>
+        <div class="param-row" style="margin-top:6px">
+          <span class="lbl">Ratio</span>
+          <button class="pbtn active" data-ratio="9:16">9:16</button>
+          <button class="pbtn" data-ratio="16:9">16:9</button>
+          <button class="pbtn" data-ratio="1:1">1:1</button>
+          <button class="pbtn" data-ratio="4:3">4:3</button>
+          <button class="pbtn" data-ratio="3:4">3:4</button>
+        </div>
+      </div>
+
+      <button class="gen-btn" id="genBtn" onclick="generate()">Generate Video</button>
+      <button class="cancel-btn" id="cancelBtn" style="display:none" onclick="cancel()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- COL 3: Video -->
+  <div class="col-video">
+    <div class="col-header" id="videoStatus">Video Player</div>
+    <div class="video-body" id="videoBody">
+      <div class="placeholder">Select an image and generate a video</div>
+    </div>
+    <div class="video-footer" id="videoFooter"></div>
+  </div>
+</div>
 
 <script>
 const API_BASE = 'https://8088-capy-1771487125563-591246-preview.happycapy.ai';
+let bloggers = [], activeBlogger = null, selectedImage = null;
+let selectedDuration = 5, selectedRatio = '9:16';
+let pollAbort = null, promptVersions = [], activeVer = 0;
+let customImages = [];
 
-let bloggers = [];
-let activeBlogger = null;
-let selectedImage = null;
-let selectedDuration = 5;
-let selectedRatio = '9:16';
-let pollAbort = null;
-let promptVersions = []; // [{prompt, promptCn, label}]
-let activeVersion = 0;
-let customImages = []; // [{id, base64, url (from server after upload), name}]
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-// Custom image upload
-document.getElementById('customImageInput').addEventListener('change', (e) => {
-  const files = Array.from(e.target.files);
-  files.forEach(file => {
+// Param buttons
+document.querySelectorAll('.pbtn[data-dur]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.pbtn[data-dur]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); selectedDuration = +b.dataset.dur;
+}));
+document.querySelectorAll('.pbtn[data-ratio]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.pbtn[data-ratio]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active'); selectedRatio = b.dataset.ratio;
+}));
+function setRatio(r) {
+  selectedRatio = r;
+  document.querySelectorAll('.pbtn[data-ratio]').forEach(b => b.classList.toggle('active', b.dataset.ratio === r));
+}
+function detectRatio(w, h) {
+  const r = w/h, opts = [{r:'9:16',v:9/16},{r:'16:9',v:16/9},{r:'1:1',v:1},{r:'4:3',v:4/3},{r:'3:4',v:3/4}];
+  let best = opts[0], bd = Infinity;
+  for (const o of opts) { const d = Math.abs(r-o.v); if (d < bd) { bd = d; best = o; } }
+  return best.r;
+}
+
+// File upload
+document.getElementById('fileInput').addEventListener('change', e => {
+  Array.from(e.target.files).forEach(f => {
     const reader = new FileReader();
     reader.onload = () => {
-      const id = Date.now() + '_' + Math.random().toString(36).slice(2,6);
-      const entry = { id, base64: reader.result, url: null, name: file.name };
-      customImages.push(entry);
-      renderCustomThumbs();
+      customImages.push({ id: Date.now()+'_'+Math.random().toString(36).slice(2,5), base64: reader.result, url: null, name: f.name });
+      renderCustom();
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(f);
   });
   e.target.value = '';
 });
-
-function renderCustomThumbs() {
-  const container = document.getElementById('customThumbs');
-  container.innerHTML = '';
+function renderCustom() {
+  const c = document.getElementById('customStrip'); c.innerHTML = '';
   customImages.forEach(img => {
-    const div = document.createElement('div');
-    div.className = 'custom-thumb' + (selectedImage && selectedImage.customId === img.id ? ' selected' : '');
-    div.innerHTML = `<img src="${img.base64}" /><button class="remove-btn" onclick="event.stopPropagation();removeCustomImage('${img.id}')">&times;</button>`;
-    div.addEventListener('click', () => selectCustomImage(img));
-    container.appendChild(div);
+    const d = document.createElement('div');
+    d.className = 'custom-thumb' + (selectedImage?.customId === img.id ? ' selected' : '');
+    d.innerHTML = `<img src="${img.base64}"/><button class="x" onclick="event.stopPropagation();rmCustom('${img.id}')">&times;</button>`;
+    d.addEventListener('click', () => pickCustom(img));
+    c.appendChild(d);
   });
 }
-
-function removeCustomImage(id) {
+function rmCustom(id) {
   customImages = customImages.filter(i => i.id !== id);
-  renderCustomThumbs();
-  if (selectedImage && selectedImage.customId === id) {
-    selectedImage = null;
-    document.getElementById('videoSection').classList.remove('active');
-  }
+  renderCustom();
+  if (selectedImage?.customId === id) { selectedImage = null; hidePreview(); }
 }
-
-async function selectCustomImage(img) {
-  // Upload to server to get a URL if not already uploaded
+async function pickCustom(img) {
   if (!img.url) {
     try {
-      const res = await fetch(`${API_BASE}/api/upload-image`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: img.base64 }),
-      });
-      const data = await res.json();
-      if (data.filename) img.url = `${API_BASE}/uploads/${data.filename}`;
-      else { alert('Upload failed: ' + (data.error || 'unknown')); return; }
-    } catch (err) { alert('Upload error: ' + err.message); return; }
+      const r = await fetch(`${API_BASE}/api/upload-image`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({imageBase64:img.base64}) });
+      const d = await r.json();
+      if (d.filename) img.url = `${API_BASE}/uploads/${d.filename}`;
+      else { alert('Upload failed'); return; }
+    } catch(e) { alert('Upload error: '+e.message); return; }
   }
-
-  selectedImage = { customId: img.id, customUrl: img.url, customBase64: img.base64, bloggerName: 'Custom', filename: img.name };
+  selectedImage = { customId:img.id, customUrl:img.url, customBase64:img.base64, bloggerName:'Custom', filename:img.name };
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
-  renderCustomThumbs();
-
-  const section = document.getElementById('videoSection');
-  section.classList.add('active');
-  document.getElementById('selectedPreview').innerHTML = `
-    <img src="${img.base64}" style="width:56px;height:100px;object-fit:cover;border-radius:4px" />
-    <div class="selected-info">
-      <div class="blogger-name">Custom Upload</div>
-      <div class="file-name">${img.name}</div>
-    </div>
-  `;
-  // Auto-detect ratio
-  const tmpImg = new Image();
-  tmpImg.onload = () => setRatio(detectRatio(tmpImg.naturalWidth, tmpImg.naturalHeight));
-  tmpImg.src = img.base64;
+  renderCustom(); showPreview(img.base64, 'Custom Upload', img.name);
+  const tmp = new Image(); tmp.onload = () => setRatio(detectRatio(tmp.naturalWidth, tmp.naturalHeight)); tmp.src = img.base64;
 }
 
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-// Duration buttons
-document.querySelectorAll('.controls-row .dur-btn[data-dur]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.controls-row .dur-btn[data-dur]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedDuration = parseInt(btn.dataset.dur);
-  });
-});
-document.querySelectorAll('.controls-row .dur-btn[data-ratio]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.controls-row .dur-btn[data-ratio]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    selectedRatio = btn.dataset.ratio;
-  });
-});
-
+// Init
 async function init() {
-  const res = await fetch('data.json');
-  bloggers = await res.json();
-  const totalImages = bloggers.reduce((s, b) => s + b.images.length, 0);
-  document.getElementById('stats').textContent = `${bloggers.length} bloggers / ${totalImages} frames`;
-  renderNav();
-  if (bloggers.length > 0) selectBlogger(bloggers[0].id);
+  const r = await fetch('data.json'); bloggers = await r.json();
+  renderTabs(); if (bloggers.length) pickBlogger(bloggers[0].id);
 }
+const THUMB_ID = {0:0,1:1,2:2,3:4,4:5,5:6,6:7,7:8};
+function thumbUrl(b,f) { return `thumbs/${THUMB_ID[b]??b}/${f}`; }
+function fullUrl(b,f) { return `faces/${b}/${f}`; }
 
-function renderNav() {
-  const nav = document.getElementById('bloggerNav');
-  nav.innerHTML = `<button class="blogger-tab" data-name="__all__" onclick="selectBlogger('__all__')">
-    All<span class="count">${bloggers.reduce((s,b) => s + b.images.length, 0)}</span>
-  </button>`;
-  bloggers.forEach(b => {
-    nav.innerHTML += `<button class="blogger-tab" data-name="${b.id}" onclick="selectBlogger(${b.id})">
-      ${b.name}<span class="count">${b.images.length}</span>
-    </button>`;
-  });
+function renderTabs() {
+  const c = document.getElementById('bloggerTabs');
+  c.innerHTML = `<div class="btab" data-id="__all__" onclick="pickBlogger('__all__')">All<span class="cnt">${bloggers.reduce((s,b)=>s+b.images.length,0)}</span></div>`;
+  bloggers.forEach(b => { c.innerHTML += `<div class="btab" data-id="${b.id}" onclick="pickBlogger(${b.id})">${b.name}<span class="cnt">${b.images.length}</span></div>`; });
 }
-
-function selectBlogger(id) {
+function pickBlogger(id) {
   activeBlogger = id;
-  document.querySelectorAll('.blogger-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.name === String(id));
-  });
+  document.querySelectorAll('.btab').forEach(t => t.classList.toggle('active', t.dataset.id === String(id)));
   renderGallery();
 }
-
-const THUMB_ID = {0:0, 1:1, 2:2, 3:4, 4:5, 5:6, 6:7, 7:8};
-function thumbUrl(bid, fname) { return `thumbs/${THUMB_ID[bid] ?? bid}/${fname}`; }
-function fullUrl(bid, fname) { return `faces/${bid}/${fname}`; }
-
 function renderGallery() {
-  const grid = document.getElementById('gallery');
-  grid.innerHTML = '';
+  const g = document.getElementById('gallery'); g.innerHTML = '';
   const list = activeBlogger === '__all__' ? bloggers : bloggers.filter(b => b.id === activeBlogger);
-  list.forEach(b => {
-    b.images.forEach(img => {
-      const div = document.createElement('div');
-      div.className = 'thumb';
-      if (selectedImage && selectedImage.bloggerId === b.id && selectedImage.filename === img) {
-        div.classList.add('selected');
-      }
-      div.innerHTML = `
-        <img src="${thumbUrl(b.id, img)}" loading="lazy" />
-        <div class="label">${b.name}</div>
-      `;
-      div.addEventListener('click', () => selectImage(b.id, b.name, img, div));
-      grid.appendChild(div);
-    });
-  });
+  list.forEach(b => b.images.forEach(img => {
+    const d = document.createElement('div');
+    d.className = 'thumb' + (selectedImage?.bloggerId===b.id && selectedImage?.filename===img ? ' selected' : '');
+    d.innerHTML = `<img src="${thumbUrl(b.id,img)}" loading="lazy"/>`;
+    d.addEventListener('click', () => pickImage(b.id, b.name, img, d));
+    g.appendChild(d);
+  }));
 }
-
-function detectRatio(w, h) {
-  const r = w / h;
-  const options = [
-    { ratio: '9:16', val: 9/16 },
-    { ratio: '16:9', val: 16/9 },
-    { ratio: '1:1', val: 1 },
-    { ratio: '4:3', val: 4/3 },
-    { ratio: '3:4', val: 3/4 },
-  ];
-  let best = options[0], bestDiff = Infinity;
-  for (const o of options) {
-    const diff = Math.abs(r - o.val);
-    if (diff < bestDiff) { bestDiff = diff; best = o; }
-  }
-  return best.ratio;
-}
-
-function setRatio(ratio) {
-  selectedRatio = ratio;
-  document.querySelectorAll('.controls-row .dur-btn[data-ratio]').forEach(b => {
-    b.classList.toggle('active', b.dataset.ratio === ratio);
-  });
-}
-
-function selectImage(bloggerId, bloggerName, filename, el) {
-  selectedImage = { bloggerId, bloggerName, filename };
+function pickImage(bid, bname, fname, el) {
+  selectedImage = { bloggerId:bid, bloggerName:bname, filename:fname };
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
   document.querySelectorAll('.custom-thumb').forEach(t => t.classList.remove('selected'));
   el.classList.add('selected');
-  const section = document.getElementById('videoSection');
-  section.classList.add('active');
-  document.getElementById('selectedPreview').innerHTML = `
-    <img src="${thumbUrl(bloggerId, filename)}" />
-    <div class="selected-info">
-      <div class="blogger-name">${bloggerName}</div>
-      <div class="file-name">${filename}</div>
-    </div>
-  `;
-  const img = new Image();
-  img.onload = () => setRatio(detectRatio(img.naturalWidth, img.naturalHeight));
-  img.src = fullUrl(bloggerId, filename);
+  showPreview(thumbUrl(bid, fname), bname, fname);
+  const tmp = new Image(); tmp.onload = () => setRatio(detectRatio(tmp.naturalWidth, tmp.naturalHeight)); tmp.src = fullUrl(bid, fname);
 }
-
-function closePanel() {
-  document.getElementById('videoSection').classList.remove('active');
-  selectedImage = null;
-  document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
+function showPreview(src, name, file) {
+  document.getElementById('previewRow').style.display = 'flex';
+  document.getElementById('previewImg').src = src;
+  document.getElementById('previewName').textContent = name;
+  document.getElementById('previewFile').textContent = file;
 }
+function hidePreview() { document.getElementById('previewRow').style.display = 'none'; }
 
+// Auto prompt
 async function toBase64(url) {
-  const res = await fetch(url);
-  const blob = await res.blob();
-  return new Promise(resolve => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.readAsDataURL(blob);
-  });
+  const r = await fetch(url); const b = await r.blob();
+  return new Promise(res => { const rd = new FileReader(); rd.onload = () => res(rd.result); rd.readAsDataURL(b); });
 }
-
-function selectVersion(idx) {
-  activeVersion = idx;
-  document.querySelectorAll('.version-tab').forEach(t => t.classList.toggle('active', parseInt(t.dataset.ver) === idx));
-  const ta = document.getElementById('promptInput');
-  const cnBox = document.getElementById('promptCnBox');
-  const cnText = document.getElementById('promptCnText');
-  if (promptVersions[idx]) {
-    ta.value = promptVersions[idx].prompt;
-    if (promptVersions[idx].promptCn) {
-      cnText.textContent = promptVersions[idx].promptCn;
-      cnBox.style.display = 'block';
-    } else {
-      cnBox.style.display = 'none';
-    }
+function selectVer(i) {
+  activeVer = i;
+  document.querySelectorAll('.ver-tab').forEach(t => t.classList.toggle('active', +t.dataset.v === i));
+  if (promptVersions[i]) {
+    document.getElementById('promptTA').value = promptVersions[i].prompt;
+    const box = document.getElementById('cnBox'), txt = document.getElementById('cnText');
+    if (promptVersions[i].promptCn) { txt.textContent = promptVersions[i].promptCn; box.style.display = 'block'; }
+    else { box.style.display = 'none'; }
   }
 }
-
-async function autoGeneratePrompt() {
-  if (!selectedImage) { alert('Please select an image first'); return; }
-  const btn = document.getElementById('autoPromptBtn');
-  const ta = document.getElementById('promptInput');
-  btn.disabled = true;
-  btn.textContent = 'Analyzing...';
+async function autoPrompt() {
+  if (!selectedImage) { alert('Select an image first'); return; }
+  const btn = document.getElementById('autoBtn'), ta = document.getElementById('promptTA');
+  btn.disabled = true; btn.textContent = 'Analyzing...';
   try {
-    const imageBase64 = selectedImage.customBase64
-      ? selectedImage.customBase64
-      : await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
-    const res = await fetch(`${API_BASE}/api/auto-prompt`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageBase64, duration: selectedDuration }),
-    });
-    const data = await res.json();
-
-    if (data.versions && data.versions.length >= 2) {
-      promptVersions = data.versions;
-      // Show version tabs
-      const tabs = document.getElementById('versionTabs');
-      tabs.style.display = 'flex';
-      tabs.innerHTML = data.versions.map((v, i) =>
-        `<div class="version-tab${i === 0 ? ' active' : ''}" data-ver="${i}" onclick="selectVersion(${i})">${v.label}</div>`
-      ).join('');
-      selectVersion(0);
-    } else if (data.prompt) {
-      // Fallback: single version
-      promptVersions = [{ prompt: data.prompt, promptCn: data.promptCn || '', label: 'A' }];
-      document.getElementById('versionTabs').style.display = 'none';
-      ta.value = data.prompt;
-      const cnBox = document.getElementById('promptCnBox');
-      const cnText = document.getElementById('promptCnText');
-      if (data.promptCn) { cnText.textContent = data.promptCn; cnBox.style.display = 'block'; }
-      else { cnBox.style.display = 'none'; }
-    } else {
-      ta.value = data.error || 'Failed to generate prompt';
-    }
-  } catch (err) {
-    ta.value = 'Error: ' + err.message;
-  }
-  btn.disabled = false;
-  btn.textContent = 'Auto Generate';
+    const b64 = selectedImage.customBase64 || await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
+    const r = await fetch(`${API_BASE}/api/auto-prompt`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({imageBase64:b64, duration:selectedDuration}) });
+    const d = await r.json();
+    if (d.versions?.length >= 2) {
+      promptVersions = d.versions;
+      const tabs = document.getElementById('verTabs'); tabs.style.display = 'flex';
+      tabs.innerHTML = d.versions.map((v,i) => `<div class="ver-tab${i===0?' active':''}" data-v="${i}" onclick="selectVer(${i})">${v.label}</div>`).join('');
+      selectVer(0);
+    } else if (d.prompt) {
+      promptVersions = [{prompt:d.prompt, promptCn:d.promptCn||''}];
+      document.getElementById('verTabs').style.display = 'none';
+      ta.value = d.prompt;
+      if (d.promptCn) { document.getElementById('cnText').textContent = d.promptCn; document.getElementById('cnBox').style.display = 'block'; }
+    } else { ta.value = d.error || 'Failed'; }
+  } catch(e) { ta.value = 'Error: '+e.message; }
+  btn.disabled = false; btn.textContent = 'Auto Generate';
 }
 
-function cancelGeneration() {
+// Generate video
+function cancel() {
   if (pollAbort) { pollAbort.abort(); pollAbort = null; }
-  document.getElementById('genBtn').disabled = false;
-  document.getElementById('genBtn').textContent = 'Generate Video';
+  document.getElementById('genBtn').disabled = false; document.getElementById('genBtn').textContent = 'Generate Video';
   document.getElementById('cancelBtn').style.display = 'none';
-  document.getElementById('resultArea').innerHTML = '<div class="status-msg">Cancelled</div>';
+  document.getElementById('videoStatus').textContent = 'Cancelled';
 }
-
-async function generateVideo() {
+function finishGen() {
+  document.getElementById('genBtn').disabled = false; document.getElementById('genBtn').textContent = 'Generate Video';
+  document.getElementById('cancelBtn').style.display = 'none'; pollAbort = null;
+}
+async function generate() {
   if (!selectedImage) return;
-  const prompt = document.getElementById('promptInput').value.trim();
-  if (!prompt) { alert('Please enter a prompt'); return; }
-
-  if (pollAbort) { pollAbort.abort(); }
+  const prompt = document.getElementById('promptTA').value.trim();
+  if (!prompt) { alert('Enter a prompt'); return; }
+  if (pollAbort) pollAbort.abort();
   pollAbort = new AbortController();
-
   const btn = document.getElementById('genBtn');
-  const area = document.getElementById('resultArea');
-  btn.disabled = true;
-  btn.textContent = 'Submitting...';
+  btn.disabled = true; btn.textContent = 'Submitting...';
   document.getElementById('cancelBtn').style.display = 'block';
-
+  const vBody = document.getElementById('videoBody');
+  const vStatus = document.getElementById('videoStatus');
+  const vFooter = document.getElementById('videoFooter');
+  vBody.innerHTML = '<div class="placeholder">Submitting...</div>';
+  vFooter.innerHTML = '';
   try {
-    const imageUrl = selectedImage.customUrl
-      ? selectedImage.customUrl
-      : `https://wblyy.github.io/douyin-face-gallery/faces/${selectedImage.bloggerId}/${selectedImage.filename}`;
-    area.innerHTML = `<div class="status-msg">Sending to Wan 2.2 Spicy...</div>`;
-
-    const genRes = await fetch(`${API_BASE}/api/generate-video`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl, prompt, duration: selectedDuration, aspect_ratio: selectedRatio }),
-    });
-
-    const genData = await genRes.json();
-    area.innerHTML = `<div class="status-msg">Submitted</div>
-      <pre class="api-raw">${esc(JSON.stringify(genData, null, 2))}</pre>`;
-    if (!genData.success) {
-      throw new Error(genData.error || JSON.stringify(genData).slice(0, 500));
-    }
-    pollVideo(genData.request_id, prompt);
-  } catch (err) {
-    area.innerHTML += `<div class="status-msg error">${esc(err.message)}</div>`;
+    const imageUrl = selectedImage.customUrl || `https://wblyy.github.io/douyin-face-gallery/faces/${selectedImage.bloggerId}/${selectedImage.filename}`;
+    const r = await fetch(`${API_BASE}/api/generate-video`, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({imageUrl, prompt, duration:selectedDuration, aspect_ratio:selectedRatio}) });
+    const d = await r.json();
+    vStatus.textContent = 'Submitted, waiting...';
+    vFooter.innerHTML = `<pre class="api-raw">${esc(JSON.stringify(d,null,2))}</pre>`;
+    if (!d.success) throw new Error(d.error || JSON.stringify(d).slice(0,500));
+    pollVideo(d.request_id, prompt);
+  } catch(e) {
+    vStatus.className = 'col-header'; vStatus.textContent = 'Error: ' + e.message;
+    vStatus.style.color = 'var(--danger)';
     finishGen();
   }
 }
-
-function finishGen() {
-  document.getElementById('genBtn').disabled = false;
-  document.getElementById('genBtn').textContent = 'Generate Video';
-  document.getElementById('cancelBtn').style.display = 'none';
-  pollAbort = null;
-}
-
-async function pollVideo(requestId, prompt) {
-  const area = document.getElementById('resultArea');
+async function pollVideo(rid, prompt) {
+  const vBody = document.getElementById('videoBody');
+  const vStatus = document.getElementById('videoStatus');
+  const vFooter = document.getElementById('videoFooter');
   const signal = pollAbort?.signal;
-  let attempts = 0;
-  const maxAttempts = 120;
-  let consecutiveErrors = 0;
-
+  let att = 0, maxAtt = 120, errCnt = 0;
   const poll = async () => {
     if (signal?.aborted) return;
-    attempts++;
-    if (attempts > maxAttempts) {
-      area.innerHTML = `<div class="status-msg error">Timeout after ${maxAttempts * 3}s</div>`;
-      finishGen();
-      return;
-    }
+    att++;
+    if (att > maxAtt) { vStatus.textContent = `Timeout (${maxAtt*3}s)`; vStatus.style.color='var(--danger)'; finishGen(); return; }
     try {
-      const res = await fetch(`${API_BASE}/api/video-status/${requestId}`);
-      const json = await res.json();
-      const d = json.data;
-      consecutiveErrors = 0;
-      const raw = JSON.stringify(d, null, 2);
-
-      if (d.status === 'done' || d.status === 'completed' || d.state === 'completed') {
-        let videoUrl = null;
-        if (d.video?.url) videoUrl = d.video.url;
-        else if (d.video_url) videoUrl = d.video_url;
-        else if (d.data?.[0]?.url) videoUrl = d.data[0].url;
-        else if (d.results?.[0]?.url) videoUrl = d.results[0].url;
-
-        if (videoUrl) {
-          area.innerHTML = `
-            <div class="status-msg success" style="padding:6px 10px;font-size:11px">Video ready (${attempts * 3}s)</div>
-            <div class="video-container">
-              <video src="${videoUrl}" controls autoplay loop playsinline></video>
-            </div>
-            <details style="flex-shrink:0"><summary style="font-size:10px;color:var(--text2);cursor:pointer">Prompt</summary>
-              <div class="history-item"><div class="prompt-text">"${esc(prompt)}"</div></div></details>
-            <details style="flex-shrink:0"><summary style="font-size:10px;color:var(--text2);cursor:pointer">API Response</summary>
-              <pre class="api-raw">${esc(raw)}</pre></details>
-          `;
+      const r = await fetch(`${API_BASE}/api/video-status/${rid}`);
+      const j = await r.json(); const d = j.data; errCnt = 0;
+      const raw = JSON.stringify(d,null,2);
+      if (d.status==='done'||d.status==='completed'||d.state==='completed') {
+        let url = d.video?.url || d.video_url || d.data?.[0]?.url || d.results?.[0]?.url;
+        if (url) {
+          vStatus.textContent = `Video ready (${att*3}s)`; vStatus.style.color='var(--success)';
+          vBody.innerHTML = `<video src="${url}" controls autoplay loop playsinline></video>`;
+          vFooter.innerHTML = `<details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">Prompt</summary><p style="font-size:10px;color:var(--text2);padding:4px 0;font-style:italic">${esc(prompt)}</p></details>
+            <details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">API Response</summary><pre class="api-raw">${esc(raw)}</pre></details>`;
         } else {
-          area.innerHTML = `<div class="status-msg success">Done but no video URL found</div>
-            <pre class="api-raw">${esc(raw)}</pre>`;
+          vStatus.textContent = 'Done but no video URL'; vStatus.style.color='var(--danger)';
+          vFooter.innerHTML = `<pre class="api-raw">${esc(raw)}</pre>`;
         }
-        finishGen();
-        return;
+        finishGen(); return;
       }
-
-      if (d.status === 'failed' || d.state === 'failed') {
-        area.innerHTML = `<div class="status-msg error">Failed</div>
-          <pre class="api-raw">${esc(raw)}</pre>`;
-        finishGen();
-        return;
+      if (d.status==='failed'||d.state==='failed') {
+        vStatus.textContent = 'Failed'; vStatus.style.color='var(--danger)';
+        vBody.innerHTML = '<div class="placeholder">Generation failed</div>';
+        vFooter.innerHTML = `<pre class="api-raw">${esc(raw)}</pre>`;
+        finishGen(); return;
       }
-
       const pct = d.progress ? ` ${d.progress}%` : '';
-      area.innerHTML = `<div class="status-msg">Generating...${pct} (${attempts * 3}s)</div>
-        <pre class="api-raw">${esc(raw)}</pre>`;
+      vStatus.textContent = `Generating...${pct} (${att*3}s)`; vStatus.style.color='var(--text2)';
+      vFooter.innerHTML = `<pre class="api-raw">${esc(raw)}</pre>`;
       setTimeout(poll, 3000);
-    } catch (err) {
-      consecutiveErrors++;
-      if (consecutiveErrors >= 30) {
-        area.innerHTML = `<div class="status-msg error">Poll failed: ${esc(err.message)}</div>`;
-        finishGen();
-        return;
-      }
-      area.innerHTML = `<div class="status-msg">Retry ${consecutiveErrors}/30: ${esc(err.message)}</div>`;
-      setTimeout(poll, 3000);
+    } catch(e) {
+      errCnt++;
+      if (errCnt >= 30) { vStatus.textContent = 'Poll failed'; vStatus.style.color='var(--danger)'; finishGen(); return; }
+      vStatus.textContent = `Retry ${errCnt}/30...`; setTimeout(poll, 3000);
     }
   };
   setTimeout(poll, 3000);
