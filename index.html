@@ -375,7 +375,7 @@ async function selectCustomImage(img) {
         body: JSON.stringify({ imageBase64: img.base64 }),
       });
       const data = await res.json();
-      if (data.url) img.url = data.url;
+      if (data.filename) img.url = `${API_BASE}/uploads/${data.filename}`;
       else { alert('Upload failed: ' + (data.error || 'unknown')); return; }
     } catch (err) { alert('Upload error: ' + err.message); return; }
   }
