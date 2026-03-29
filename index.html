@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Douyin Face Gallery + Grok Video</title>
+<title>Douyin Face Gallery + Wan Spicy Video</title>
 <style>
   :root {
     --bg: #0a0a12;
@@ -22,150 +22,206 @@
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    min-height: 100vh;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
   .header {
-    padding: 24px 32px;
+    padding: 12px 24px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
+    gap: 12px;
+    flex-shrink: 0;
   }
-  .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; }
-  .header .stats { color: var(--text2); font-size: 13px; }
+  .header h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.5px; }
+  .header .stats { color: var(--text2); font-size: 12px; }
   .blogger-nav {
     display: flex;
-    gap: 8px;
-    padding: 16px 32px;
+    gap: 6px;
+    padding: 8px 24px;
     overflow-x: auto;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
     -webkit-overflow-scrolling: touch;
   }
   .blogger-tab {
-    padding: 6px 16px;
-    border-radius: 20px;
+    padding: 4px 12px;
+    border-radius: 16px;
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--text2);
-    font-size: 13px;
+    font-size: 12px;
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.2s;
   }
   .blogger-tab:hover { border-color: var(--accent); color: var(--text); }
   .blogger-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .blogger-tab .count { opacity: 0.7; margin-left: 4px; font-size: 11px; }
-  .main { display: flex; height: calc(100vh - 120px); }
-  .gallery-panel { flex: 1; overflow-y: auto; padding: 24px 32px; }
+  .blogger-tab .count { opacity: 0.7; margin-left: 3px; font-size: 10px; }
+
+  /* Top: gallery (40%), Bottom: video panel (60%) */
+  .gallery-section {
+    height: 38vh;
+    min-height: 160px;
+    overflow-y: auto;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+  }
   .gallery-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 8px;
   }
   .thumb {
     position: relative;
     aspect-ratio: 9/16;
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
     cursor: pointer;
     border: 2px solid transparent;
     transition: all 0.2s;
     background: var(--surface);
   }
-  .thumb:hover { border-color: var(--accent2); transform: translateY(-2px); }
-  .thumb.selected { border-color: var(--accent); box-shadow: 0 0 20px rgba(108,92,231,0.3); }
+  .thumb:hover { border-color: var(--accent2); transform: translateY(-1px); }
+  .thumb.selected { border-color: var(--accent); box-shadow: 0 0 12px rgba(108,92,231,0.3); }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
   .thumb .label {
     position: absolute;
     bottom: 0; left: 0; right: 0;
-    padding: 4px 8px;
+    padding: 2px 6px;
     background: linear-gradient(transparent, rgba(0,0,0,0.8));
-    font-size: 11px;
+    font-size: 9px;
     color: rgba(255,255,255,0.7);
   }
-  .video-panel {
-    width: 420px;
-    border-left: 1px solid var(--border);
+
+  /* Bottom video panel */
+  .video-section {
+    flex: 1;
+    display: none;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .video-section.active { display: flex; }
+  .video-section-inner {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  /* Left: controls */
+  .controls-col {
+    width: 50%;
+    padding: 12px 16px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    background: var(--surface);
-    overflow-y: auto;
+    gap: 10px;
   }
-  .video-panel.hidden { display: none; }
-  .panel-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border);
+  /* Right: result */
+  .result-col {
+    width: 50%;
+    padding: 12px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .panel-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
-  .panel-header h3 { font-size: 14px; font-weight: 600; }
-  .close-btn { background: none; border: none; color: var(--text2); font-size: 18px; cursor: pointer; }
+  .panel-title h3 { font-size: 13px; font-weight: 600; color: var(--accent2); }
+  .close-btn { background: none; border: none; color: var(--text2); font-size: 16px; cursor: pointer; }
   .close-btn:hover { color: var(--text); }
-  .selected-preview { padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; }
-  .selected-preview img { width: 80px; height: 142px; object-fit: cover; border-radius: 6px; }
-  .selected-info { flex: 1; font-size: 13px; }
-  .selected-info .blogger-name { font-weight: 600; margin-bottom: 4px; }
-  .selected-info .file-name { color: var(--text2); font-size: 11px; }
-  .prompt-area { padding: 0 20px 16px; }
-  .prompt-area label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
-  .prompt-area textarea {
-    width: 100%; height: 80px;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-    color: var(--text); padding: 10px 12px; font-size: 13px; resize: vertical; font-family: inherit;
+
+  .selected-preview { display: flex; gap: 10px; align-items: flex-start; }
+  .selected-preview img { width: 56px; height: 100px; object-fit: cover; border-radius: 4px; }
+  .selected-info { flex: 1; font-size: 12px; }
+  .selected-info .blogger-name { font-weight: 600; margin-bottom: 2px; }
+  .selected-info .file-name { color: var(--text2); font-size: 10px; }
+
+  .prompt-section label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  .prompt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .prompt-header label { margin: 0; }
+  .auto-prompt-btn { padding: 2px 8px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border); color: var(--accent2); font-size: 10px; cursor: pointer; transition: all 0.2s; }
+  .auto-prompt-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .auto-prompt-btn:disabled { color: var(--text2); cursor: wait; }
+
+  /* Version tabs */
+  .version-tabs { display: flex; gap: 4px; margin-bottom: 4px; }
+  .version-tab {
+    padding: 3px 10px; border-radius: 4px; font-size: 10px; cursor: pointer;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text2);
+    transition: all 0.2s;
   }
-  .prompt-area textarea:focus { outline: none; border-color: var(--accent); }
-  .prompt-area textarea::placeholder { color: var(--text2); }
-  .duration-row { padding: 0 20px 16px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .duration-row label { font-size: 12px; color: var(--text2); margin-right: 4px; }
+  .version-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .version-tab:hover:not(.active) { border-color: var(--accent2); color: var(--text); }
+
+  .prompt-section textarea {
+    width: 100%; height: 70px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); padding: 8px 10px; font-size: 12px; resize: vertical; font-family: inherit;
+  }
+  .prompt-section textarea:focus { outline: none; border-color: var(--accent); }
+  .prompt-section textarea::placeholder { color: var(--text2); }
+
+  .cn-box {
+    display: none; margin-top: 4px; padding: 6px 8px;
+    background: var(--surface2); border-radius: 4px; font-size: 11px;
+    color: var(--text2); line-height: 1.4; border: 1px solid var(--border);
+    max-height: 80px; overflow-y: auto;
+  }
+  .cn-box .cn-label { font-size: 9px; color: var(--accent2); font-weight: 600; margin-right: 4px; }
+
+  .controls-row { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .controls-row label { font-size: 11px; color: var(--text2); margin-right: 2px; }
   .dur-btn {
-    padding: 4px 12px; border-radius: 12px;
-    background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 12px; cursor: pointer;
+    padding: 3px 10px; border-radius: 10px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 11px; cursor: pointer;
   }
   .dur-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .ratio-row { padding: 0 20px 16px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  .ratio-row label { font-size: 12px; color: var(--text2); margin-right: 4px; }
+
   .gen-btn {
-    margin: 0 20px 16px; padding: 12px; border-radius: 8px;
+    padding: 10px; border-radius: 6px;
     background: var(--accent); border: none; color: #fff;
-    font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s;
   }
   .gen-btn:hover { background: #5a4bd4; }
   .gen-btn:disabled { background: var(--surface2); color: var(--text2); cursor: not-allowed; }
-  .result-area { flex: 1; padding: 0 20px 20px; display: flex; flex-direction: column; gap: 12px; }
-  .status-msg { font-size: 13px; color: var(--text2); padding: 12px; background: var(--bg); border-radius: 8px; }
+  .cancel-btn {
+    padding: 6px; border-radius: 6px; background: var(--surface2);
+    border: 1px solid var(--border); color: var(--danger); font-size: 12px; cursor: pointer;
+  }
+  .cancel-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+  .status-msg { font-size: 12px; color: var(--text2); padding: 10px; background: var(--bg); border-radius: 6px; }
   .status-msg.error { color: var(--danger); }
   .status-msg.success { color: var(--success); }
-  .video-container { border-radius: 8px; overflow: hidden; background: #000; }
+  .video-container { border-radius: 6px; overflow: hidden; background: #000; }
   .video-container video { width: 100%; display: block; }
-  .history-item { background: var(--bg); border-radius: 8px; padding: 12px; font-size: 12px; }
-  .history-item .prompt-text { color: var(--text2); margin-bottom: 8px; font-style: italic; }
-  .api-raw { font-size: 11px; color: var(--text2); background: var(--bg); padding: 8px; border-radius: 6px; overflow: auto; max-height: 180px; white-space: pre-wrap; word-break: break-all; margin-top: 6px; }
-  .auto-prompt-btn { padding: 3px 10px; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--accent2); font-size: 11px; cursor: pointer; transition: all 0.2s; }
-  .auto-prompt-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .auto-prompt-btn:disabled { color: var(--text2); cursor: wait; }
-  .audio-row { padding: 0 20px 16px; }
-  .audio-row > label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; font-weight: 600; }
-  .audio-upload { display: flex; align-items: center; gap: 8px; }
-  .audio-btn { padding: 5px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text2); font-size: 12px; cursor: pointer; }
-  .audio-btn:hover { border-color: var(--accent); color: var(--text); }
-  .audio-name { font-size: 12px; color: var(--text2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .audio-clear { background: none; border: none; color: var(--danger); font-size: 16px; cursor: pointer; padding: 0 4px; }
-  .cancel-btn { margin: 0 20px 8px; padding: 8px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--danger); font-size: 13px; cursor: pointer; }
-  .cancel-btn:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
-  ::-webkit-scrollbar { width: 6px; }
+  .api-raw { font-size: 10px; color: var(--text2); background: var(--bg); padding: 6px; border-radius: 4px; overflow: auto; max-height: 150px; white-space: pre-wrap; word-break: break-all; }
+  .history-item { background: var(--bg); border-radius: 6px; padding: 8px; font-size: 11px; }
+  .history-item .prompt-text { color: var(--text2); margin-bottom: 6px; font-style: italic; }
+
+  .placeholder-msg { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text2); font-size: 13px; padding: 40px; text-align: center; }
+
+  ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
   @media (max-width: 768px) {
-    .main { flex-direction: column; height: auto; min-height: calc(100vh - 120px); }
-    .gallery-panel { padding: 12px 16px; }
-    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
-    .video-panel { width: 100%; border-left: none; border-top: 1px solid var(--border); }
-    .header { padding: 16px; }
-    .header h1 { font-size: 16px; }
-    .blogger-nav { padding: 10px 16px; }
+    .gallery-section { height: 30vh; padding: 8px 12px; }
+    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+    .video-section-inner { flex-direction: column; }
+    .controls-col, .result-col { width: 100%; border-right: none; }
+    .controls-col { border-bottom: 1px solid var(--border); max-height: 50%; }
+    .header { padding: 8px 12px; }
+    .blogger-nav { padding: 6px 12px; }
   }
 </style>
 </head>
@@ -175,61 +231,58 @@
     <span class="stats" id="stats"></span>
   </div>
   <div class="blogger-nav" id="bloggerNav"></div>
-  <div class="main">
-    <div class="gallery-panel">
-      <div class="gallery-grid" id="gallery"></div>
-    </div>
-    <div class="video-panel hidden" id="videoPanel">
-      <div class="panel-header">
-        <h3>Wan 2.6 Video Generation</h3>
-        <button class="close-btn" onclick="closePanel()">&times;</button>
-      </div>
-      <div class="selected-preview" id="selectedPreview"></div>
-      <div class="prompt-area">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <label style="margin:0">Prompt</label>
-          <button class="auto-prompt-btn" id="autoPromptBtn" onclick="autoGeneratePrompt()">Auto Generate</button>
+  <div class="gallery-section">
+    <div class="gallery-grid" id="gallery"></div>
+  </div>
+  <div class="video-section" id="videoSection">
+    <div class="video-section-inner">
+      <div class="controls-col">
+        <div class="panel-title">
+          <h3>Wan 2.2 Turbo Spicy (LoRA i2v)</h3>
+          <button class="close-btn" onclick="closePanel()">&times;</button>
         </div>
-        <textarea id="promptInput" placeholder="Write your own or click Auto Generate..."></textarea>
-        <div id="promptCnBox" style="display:none;margin-top:6px;padding:8px 10px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text2);line-height:1.5;border:1px solid var(--border);">
-          <span style="font-size:10px;color:var(--accent2);font-weight:600;">CN</span>
-          <span id="promptCnText"></span>
+        <div class="selected-preview" id="selectedPreview"></div>
+        <div class="prompt-section">
+          <div class="prompt-header">
+            <label>Prompt</label>
+            <button class="auto-prompt-btn" id="autoPromptBtn" onclick="autoGeneratePrompt()">Auto Generate</button>
+          </div>
+          <div class="version-tabs" id="versionTabs" style="display:none">
+            <div class="version-tab active" data-ver="0" onclick="selectVersion(0)">A: Undressing</div>
+            <div class="version-tab" data-ver="1" onclick="selectVersion(1)">B: Nude Display</div>
+          </div>
+          <textarea id="promptInput" placeholder="Select an image, then click Auto Generate or type your own prompt..."></textarea>
+          <div class="cn-box" id="promptCnBox">
+            <span class="cn-label">CN</span>
+            <span id="promptCnText"></span>
+          </div>
         </div>
-      </div>
-      <div class="duration-row">
-        <label>Duration</label>
-        <button class="dur-btn" data-dur="3">3s</button>
-        <button class="dur-btn active" data-dur="5">5s</button>
-        <button class="dur-btn" data-dur="8">8s</button>
-        <button class="dur-btn" data-dur="10">10s</button>
-        <button class="dur-btn" data-dur="15">15s</button>
-      </div>
-      <div class="ratio-row">
-        <label>Ratio</label>
-        <button class="dur-btn active" data-ratio="9:16">9:16</button>
-        <button class="dur-btn" data-ratio="16:9">16:9</button>
-        <button class="dur-btn" data-ratio="1:1">1:1</button>
-        <button class="dur-btn" data-ratio="4:3">4:3</button>
-        <button class="dur-btn" data-ratio="3:4">3:4</button>
-      </div>
-      <!-- Audio not supported by wan-2.2-turbo-spicy model -->
-      <div class="audio-row" style="display:none">
-        <label>Reference Audio <span style="color:var(--text2);font-weight:normal">(optional)</span></label>
-        <div class="audio-upload">
-          <input type="file" id="audioInput" accept="audio/*" style="display:none" />
-          <button class="audio-btn" id="audioBtn" onclick="document.getElementById('audioInput').click()">Choose Audio File</button>
-          <span class="audio-name" id="audioName">No file selected</span>
-          <button class="audio-clear" id="audioClear" style="display:none" onclick="clearAudio()">&times;</button>
+        <div class="controls-row">
+          <label>Duration</label>
+          <button class="dur-btn" data-dur="3">3s</button>
+          <button class="dur-btn active" data-dur="5">5s</button>
+          <button class="dur-btn" data-dur="8">8s</button>
+          <button class="dur-btn" data-dur="10">10s</button>
+          <button class="dur-btn" data-dur="15">15s</button>
         </div>
+        <div class="controls-row">
+          <label>Ratio</label>
+          <button class="dur-btn active" data-ratio="9:16">9:16</button>
+          <button class="dur-btn" data-ratio="16:9">16:9</button>
+          <button class="dur-btn" data-ratio="1:1">1:1</button>
+          <button class="dur-btn" data-ratio="4:3">4:3</button>
+          <button class="dur-btn" data-ratio="3:4">3:4</button>
+        </div>
+        <button class="gen-btn" id="genBtn" onclick="generateVideo()">Generate Video</button>
+        <button class="cancel-btn" id="cancelBtn" style="display:none" onclick="cancelGeneration()">Cancel Generation</button>
       </div>
-      <button class="gen-btn" id="genBtn" onclick="generateVideo()">Generate Video</button>
-      <button class="cancel-btn" id="cancelBtn" style="display:none" onclick="cancelGeneration()">Cancel Generation</button>
-      <div class="result-area" id="resultArea"></div>
+      <div class="result-col" id="resultArea">
+        <div class="placeholder-msg">Select an image and generate a video. Results will appear here.</div>
+      </div>
     </div>
   </div>
 
 <script>
-// Backend proxy URL (handles Grok API calls server-side, avoiding CORS)
 const API_BASE = 'https://8088-capy-1771487125563-591246-preview.happycapy.ai';
 
 let bloggers = [];
@@ -237,9 +290,9 @@ let activeBlogger = null;
 let selectedImage = null;
 let selectedDuration = 5;
 let selectedRatio = '9:16';
-let pollAbort = null; // AbortController for cancelling generation
-
-let audioBase64 = null;
+let pollAbort = null;
+let promptVersions = []; // [{prompt, promptCn, label}]
+let activeVersion = 0;
 
 function esc(s) {
   const d = document.createElement('div');
@@ -247,36 +300,17 @@ function esc(s) {
   return d.innerHTML;
 }
 
-function clearAudio() {
-  audioBase64 = null;
-  document.getElementById('audioInput').value = '';
-  document.getElementById('audioName').textContent = 'No file selected';
-  document.getElementById('audioClear').style.display = 'none';
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('audioInput').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    document.getElementById('audioName').textContent = file.name;
-    document.getElementById('audioClear').style.display = 'inline';
-    const reader = new FileReader();
-    reader.onload = () => { audioBase64 = reader.result; };
-    reader.readAsDataURL(file);
-  });
-});
-
 // Duration buttons
-document.querySelectorAll('.duration-row .dur-btn').forEach(btn => {
+document.querySelectorAll('.controls-row .dur-btn[data-dur]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.duration-row .dur-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.controls-row .dur-btn[data-dur]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     selectedDuration = parseInt(btn.dataset.dur);
   });
 });
-document.querySelectorAll('.ratio-row .dur-btn').forEach(btn => {
+document.querySelectorAll('.controls-row .dur-btn[data-ratio]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.ratio-row .dur-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.controls-row .dur-btn[data-ratio]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     selectedRatio = btn.dataset.ratio;
   });
@@ -311,15 +345,9 @@ function selectBlogger(id) {
   renderGallery();
 }
 
-// Thumbs were uploaded with original dir numbering (includes empty slot 3 for 晴子misu)
-// data.json skipped 晴子misu, so IDs >= 3 are off by 1
 const THUMB_ID = {0:0, 1:1, 2:2, 3:4, 4:5, 5:6, 6:7, 7:8};
-function thumbUrl(bid, fname) {
-  return `thumbs/${THUMB_ID[bid] ?? bid}/${fname}`;
-}
-function fullUrl(bid, fname) {
-  return `faces/${bid}/${fname}`;
-}
+function thumbUrl(bid, fname) { return `thumbs/${THUMB_ID[bid] ?? bid}/${fname}`; }
+function fullUrl(bid, fname) { return `faces/${bid}/${fname}`; }
 
 function renderGallery() {
   const grid = document.getElementById('gallery');
@@ -334,7 +362,7 @@ function renderGallery() {
       }
       div.innerHTML = `
         <img src="${thumbUrl(b.id, img)}" loading="lazy" />
-        <div class="label">${b.name} / ${img}</div>
+        <div class="label">${b.name}</div>
       `;
       div.addEventListener('click', () => selectImage(b.id, b.name, img, div));
       grid.appendChild(div);
@@ -351,8 +379,7 @@ function detectRatio(w, h) {
     { ratio: '4:3', val: 4/3 },
     { ratio: '3:4', val: 3/4 },
   ];
-  let best = options[0];
-  let bestDiff = Infinity;
+  let best = options[0], bestDiff = Infinity;
   for (const o of options) {
     const diff = Math.abs(r - o.val);
     if (diff < bestDiff) { bestDiff = diff; best = o; }
@@ -362,7 +389,7 @@ function detectRatio(w, h) {
 
 function setRatio(ratio) {
   selectedRatio = ratio;
-  document.querySelectorAll('.ratio-row .dur-btn').forEach(b => {
+  document.querySelectorAll('.controls-row .dur-btn[data-ratio]').forEach(b => {
     b.classList.toggle('active', b.dataset.ratio === ratio);
   });
 }
@@ -371,8 +398,8 @@ function selectImage(bloggerId, bloggerName, filename, el) {
   selectedImage = { bloggerId, bloggerName, filename };
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
   el.classList.add('selected');
-  const panel = document.getElementById('videoPanel');
-  panel.classList.remove('hidden');
+  const section = document.getElementById('videoSection');
+  section.classList.add('active');
   document.getElementById('selectedPreview').innerHTML = `
     <img src="${thumbUrl(bloggerId, filename)}" />
     <div class="selected-info">
@@ -380,14 +407,13 @@ function selectImage(bloggerId, bloggerName, filename, el) {
       <div class="file-name">${filename}</div>
     </div>
   `;
-  // Auto-detect aspect ratio from full-res image
   const img = new Image();
   img.onload = () => setRatio(detectRatio(img.naturalWidth, img.naturalHeight));
   img.src = fullUrl(bloggerId, filename);
 }
 
 function closePanel() {
-  document.getElementById('videoPanel').classList.add('hidden');
+  document.getElementById('videoSection').classList.remove('active');
   selectedImage = null;
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
 }
@@ -402,6 +428,23 @@ async function toBase64(url) {
   });
 }
 
+function selectVersion(idx) {
+  activeVersion = idx;
+  document.querySelectorAll('.version-tab').forEach(t => t.classList.toggle('active', parseInt(t.dataset.ver) === idx));
+  const ta = document.getElementById('promptInput');
+  const cnBox = document.getElementById('promptCnBox');
+  const cnText = document.getElementById('promptCnText');
+  if (promptVersions[idx]) {
+    ta.value = promptVersions[idx].prompt;
+    if (promptVersions[idx].promptCn) {
+      cnText.textContent = promptVersions[idx].promptCn;
+      cnBox.style.display = 'block';
+    } else {
+      cnBox.style.display = 'none';
+    }
+  }
+}
+
 async function autoGeneratePrompt() {
   if (!selectedImage) { alert('Please select an image first'); return; }
   const btn = document.getElementById('autoPromptBtn');
@@ -410,27 +453,31 @@ async function autoGeneratePrompt() {
   btn.textContent = 'Analyzing...';
   try {
     const imageBase64 = await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
-    const audioName = document.getElementById('audioName').textContent;
-    const hasAudio = audioName !== 'No file selected';
     const res = await fetch(`${API_BASE}/api/auto-prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageBase64,
-        duration: selectedDuration,
-      }),
+      body: JSON.stringify({ imageBase64, duration: selectedDuration }),
     });
     const data = await res.json();
-    if (data.prompt) {
+
+    if (data.versions && data.versions.length >= 2) {
+      promptVersions = data.versions;
+      // Show version tabs
+      const tabs = document.getElementById('versionTabs');
+      tabs.style.display = 'flex';
+      tabs.innerHTML = data.versions.map((v, i) =>
+        `<div class="version-tab${i === 0 ? ' active' : ''}" data-ver="${i}" onclick="selectVersion(${i})">${v.label}</div>`
+      ).join('');
+      selectVersion(0);
+    } else if (data.prompt) {
+      // Fallback: single version
+      promptVersions = [{ prompt: data.prompt, promptCn: data.promptCn || '', label: 'A' }];
+      document.getElementById('versionTabs').style.display = 'none';
       ta.value = data.prompt;
       const cnBox = document.getElementById('promptCnBox');
       const cnText = document.getElementById('promptCnText');
-      if (data.promptCn) {
-        cnText.textContent = data.promptCn;
-        cnBox.style.display = 'block';
-      } else {
-        cnBox.style.display = 'none';
-      }
+      if (data.promptCn) { cnText.textContent = data.promptCn; cnBox.style.display = 'block'; }
+      else { cnBox.style.display = 'none'; }
     } else {
       ta.value = data.error || 'Failed to generate prompt';
     }
@@ -443,9 +490,8 @@ async function autoGeneratePrompt() {
 
 function cancelGeneration() {
   if (pollAbort) { pollAbort.abort(); pollAbort = null; }
-  const btn = document.getElementById('genBtn');
-  btn.disabled = false;
-  btn.textContent = 'Generate Video';
+  document.getElementById('genBtn').disabled = false;
+  document.getElementById('genBtn').textContent = 'Generate Video';
   document.getElementById('cancelBtn').style.display = 'none';
   document.getElementById('resultArea').innerHTML = '<div class="status-msg">Cancelled</div>';
 }
@@ -465,28 +511,21 @@ async function generateVideo() {
   document.getElementById('cancelBtn').style.display = 'block';
 
   try {
-    // Send GitHub Pages image URL directly (spicy model requires URL, not base64)
     const imageUrl = `https://wblyy.github.io/douyin-face-gallery/faces/${selectedImage.bloggerId}/${selectedImage.filename}`;
-    area.innerHTML = `<div class="status-msg">Sending URL to server: ${imageUrl}</div>`;
+    area.innerHTML = `<div class="status-msg">Sending to Wan 2.2 Spicy...</div>`;
 
     const genRes = await fetch(`${API_BASE}/api/generate-video`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageUrl,
-        prompt,
-        duration: selectedDuration,
-        aspect_ratio: selectedRatio,
-      }),
+      body: JSON.stringify({ imageUrl, prompt, duration: selectedDuration, aspect_ratio: selectedRatio }),
     });
 
     const genData = await genRes.json();
-    area.innerHTML = `<div class="status-msg">Submit response:</div>
+    area.innerHTML = `<div class="status-msg">Submitted</div>
       <pre class="api-raw">${esc(JSON.stringify(genData, null, 2))}</pre>`;
     if (!genData.success) {
       throw new Error(genData.error || JSON.stringify(genData).slice(0, 500));
     }
-
     pollVideo(genData.request_id, prompt);
   } catch (err) {
     area.innerHTML += `<div class="status-msg error">${esc(err.message)}</div>`;
@@ -503,7 +542,6 @@ function finishGen() {
 
 async function pollVideo(requestId, prompt) {
   const area = document.getElementById('resultArea');
-  const btn = document.getElementById('genBtn');
   const signal = pollAbort?.signal;
   let attempts = 0;
   const maxAttempts = 120;
@@ -514,7 +552,7 @@ async function pollVideo(requestId, prompt) {
     attempts++;
     if (attempts > maxAttempts) {
       area.innerHTML = `<div class="status-msg error">Timeout after ${maxAttempts * 3}s</div>`;
-      btn.disabled = false; btn.textContent = 'Generate Video';
+      finishGen();
       return;
     }
     try {
@@ -522,7 +560,6 @@ async function pollVideo(requestId, prompt) {
       const json = await res.json();
       const d = json.data;
       consecutiveErrors = 0;
-
       const raw = JSON.stringify(d, null, 2);
 
       if (d.status === 'done' || d.status === 'completed' || d.state === 'completed') {
@@ -539,7 +576,7 @@ async function pollVideo(requestId, prompt) {
               <video src="${videoUrl}" controls autoplay loop playsinline></video>
             </div>
             <div class="history-item"><div class="prompt-text">"${esc(prompt)}"</div></div>
-            <details><summary style="font-size:11px;color:var(--text2);cursor:pointer">API Response</summary>
+            <details><summary style="font-size:10px;color:var(--text2);cursor:pointer">API Response</summary>
               <pre class="api-raw">${esc(raw)}</pre></details>
           `;
         } else {
@@ -564,7 +601,7 @@ async function pollVideo(requestId, prompt) {
     } catch (err) {
       consecutiveErrors++;
       if (consecutiveErrors >= 30) {
-        area.innerHTML = `<div class="status-msg error">Poll failed after 30 retries: ${esc(err.message)}</div>`;
+        area.innerHTML = `<div class="status-msg error">Poll failed: ${esc(err.message)}</div>`;
         finishGen();
         return;
       }
