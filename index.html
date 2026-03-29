@@ -191,6 +191,10 @@
           <button class="auto-prompt-btn" id="autoPromptBtn" onclick="autoGeneratePrompt()">Auto Generate</button>
         </div>
         <textarea id="promptInput" placeholder="Write your own or click Auto Generate..."></textarea>
+        <div id="promptCnBox" style="display:none;margin-top:6px;padding:8px 10px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--text2);line-height:1.5;border:1px solid var(--border);">
+          <span style="font-size:10px;color:var(--accent2);font-weight:600;">CN</span>
+          <span id="promptCnText"></span>
+        </div>
       </div>
       <div class="duration-row">
         <label>Duration</label>
@@ -419,6 +423,14 @@ async function autoGeneratePrompt() {
     const data = await res.json();
     if (data.prompt) {
       ta.value = data.prompt;
+      const cnBox = document.getElementById('promptCnBox');
+      const cnText = document.getElementById('promptCnText');
+      if (data.promptCn) {
+        cnText.textContent = data.promptCn;
+        cnBox.style.display = 'block';
+      } else {
+        cnBox.style.display = 'none';
+      }
     } else {
       ta.value = data.error || 'Failed to generate prompt';
     }
