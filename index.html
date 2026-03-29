@@ -232,6 +232,19 @@
   }
   .history-item:hover .history-del { opacity: 1; }
   .history-del:hover { color: var(--danger); }
+  .history-extend {
+    font-size: 9px; color: var(--accent2); opacity: 0; cursor: pointer;
+    padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px;
+    background: var(--surface2); transition: opacity 0.15s; white-space: nowrap;
+  }
+  .history-item:hover .history-extend { opacity: 1; }
+  .history-extend:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .wilder-btn {
+    padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--danger); color: var(--danger);
+  }
+  .wilder-btn:hover { background: var(--danger); color: #fff; }
+  .wilder-btn:disabled { opacity: 0.4; cursor: wait; }
 
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -276,7 +289,10 @@
       <div>
         <div class="prompt-header">
           <span class="section-label">Prompt</span>
-          <button class="auto-btn" id="autoBtn" onclick="autoPrompt()">Auto Generate</button>
+          <span style="display:flex;gap:4px">
+            <button class="wilder-btn" id="wilderBtn" onclick="wilderPrompt()">Wilder</button>
+            <button class="auto-btn" id="autoBtn" onclick="autoPrompt()">Auto Generate</button>
+          </span>
         </div>
         <div class="ver-tabs" id="verTabs" style="display:none;margin:4px 0"></div>
         <textarea class="prompt-ta" id="promptTA" placeholder="Select image, then Auto Generate or type..."></textarea>
@@ -368,11 +384,86 @@ function renderHistory() {
         <div class="h-prompt">${esc((h.prompt||'').slice(0,60))}</div>
         <div class="h-status ${h.status}">${h.status === 'done' ? 'Done' : h.status === 'failed' ? 'Failed' : 'Generating...'}</div>
       </div>
+      ${h.status === 'done' && h.videoUrl ? `<span class="history-extend" onclick="event.stopPropagation();extendVideo(${i})">Extend</span>` : ''}
       <span class="history-del" onclick="event.stopPropagation();deleteHistory(${i})">x</span>
     </div>
   `).join('');
 }
 renderHistory();
+
+// Extend: extract last frame from history video, set as input image, update prompt
+async function extendVideo(idx) {
+  const h = videoHistory[idx]; if (!h?.videoUrl) return;
+  const vStatus = document.getElementById('videoStatus');
+  vStatus.textContent = 'Extracting last frame...'; vStatus.style.color = 'var(--text2)';
+  try {
+    // Create hidden video, seek to near-end, grab frame via canvas
+    const vid = document.createElement('video');
+    vid.crossOrigin = 'anonymous'; vid.preload = 'auto'; vid.muted = true;
+    vid.src = h.videoUrl;
+    await new Promise((ok, fail) => { vid.onloadedmetadata = ok; vid.onerror = fail; });
+    vid.currentTime = Math.max(0, vid.duration - 0.1);
+    await new Promise((ok) => { vid.onseeked = ok; });
+    const canvas = document.createElement('canvas');
+    canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+    canvas.getContext('2d').drawImage(vid, 0, 0);
+    const frameBase64 = canvas.toDataURL('image/jpeg', 0.9);
+
+    // Upload frame as custom image
+    vStatus.textContent = 'Uploading frame...';
+    const upRes = await fetch(`${API_BASE}/api/upload-image`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64: frameBase64 }),
+    });
+    const upData = await upRes.json();
+    if (!upData.success) throw new Error(upData.error || 'Upload failed');
+
+    // Add to custom images and select it via pickCustom (url already set, won't re-upload)
+    const customUrl = `${API_BASE}/uploads/${upData.filename}`;
+    const img = { id: Date.now()+'_ext', base64: frameBase64, url: customUrl, name: 'extend-frame.jpg' };
+    customImages.push(img);
+    renderCustom();
+    await pickCustom(img);
+
+    // Set prompt to continuation of previous
+    const ta = document.getElementById('promptTA');
+    ta.value = h.prompt || '';
+    document.getElementById('cnBox').style.display = 'none';
+    document.getElementById('verTabs').style.display = 'none';
+
+    vStatus.textContent = 'Frame set as input. Edit prompt or click Wilder, then Generate.';
+    vStatus.style.color = 'var(--success)';
+  } catch (err) {
+    console.error('[extend] error:', err);
+    vStatus.textContent = 'Extend failed: ' + err.message;
+    vStatus.style.color = 'var(--danger)';
+  }
+}
+
+// Wilder: escalate current prompt via Grok
+async function wilderPrompt() {
+  const ta = document.getElementById('promptTA');
+  const prompt = ta.value.trim();
+  if (!prompt) { alert('Write or generate a prompt first'); return; }
+  const btn = document.getElementById('wilderBtn');
+  btn.disabled = true; btn.textContent = 'Escalating...';
+  try {
+    const r = await fetch(`${API_BASE}/api/wilder-prompt`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, duration: selectedDuration }),
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    ta.value = d.prompt;
+    const cnBox = document.getElementById('cnBox'), cnText = document.getElementById('cnText');
+    if (d.promptCn) { cnText.textContent = d.promptCn; cnBox.style.display = 'block'; }
+    document.getElementById('verTabs').style.display = 'none';
+    promptVersions = [];
+  } catch (e) {
+    alert('Wilder failed: ' + e.message);
+  }
+  btn.disabled = false; btn.textContent = 'Wilder';
+}
 
 // Param buttons
 document.querySelectorAll('.pbtn[data-dur]').forEach(b => b.addEventListener('click', () => {
