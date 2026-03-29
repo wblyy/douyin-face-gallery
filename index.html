@@ -484,7 +484,8 @@ function updateMixBtn() {
 async function mixSelected() {
   if (mixSelection.size < 2) return;
   // Build extend chain order: walk from roots to leaves
-  const selected = videoHistory.filter(h => mixSelection.has(h.rid) && h.videoUrl);
+  // videoHistory is newest-first (unshift), reverse to get chronological order
+  const selected = videoHistory.filter(h => mixSelection.has(h.rid) && h.videoUrl).reverse();
   if (selected.length < 2) { alert('Select at least 2 completed videos'); return; }
 
   // Sort by extend chain: parent before child
