@@ -189,6 +189,50 @@
     word-break: break-all; margin: 4px 12px 8px;
   }
 
+  /* Video history */
+  .history-section {
+    flex-shrink: 0; border-top: 1px solid var(--border); background: var(--surface);
+    max-height: 35vh; overflow-y: auto;
+  }
+  .history-header {
+    padding: 6px 12px; font-size: 11px; color: var(--text2); font-weight: 600;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    background: var(--surface); z-index: 1;
+  }
+  .history-header button {
+    font-size: 9px; background: none; border: 1px solid var(--border); color: var(--text2);
+    border-radius: 3px; padding: 1px 6px; cursor: pointer;
+  }
+  .history-header button:hover { color: var(--danger); border-color: var(--danger); }
+  .history-list { display: flex; flex-direction: column; }
+  .history-item {
+    display: flex; gap: 8px; padding: 6px 12px; cursor: pointer;
+    border-bottom: 1px solid var(--border); align-items: center;
+    transition: background 0.15s;
+  }
+  .history-item:hover { background: var(--surface2); }
+  .history-item.active { background: var(--surface2); border-left: 2px solid var(--accent); }
+  .history-thumb {
+    width: 36px; height: 64px; border-radius: 3px; object-fit: cover; flex-shrink: 0;
+    background: var(--bg);
+  }
+  .history-info { flex: 1; min-width: 0; }
+  .history-info .h-time { font-size: 10px; color: var(--text2); }
+  .history-info .h-prompt {
+    font-size: 9px; color: var(--text2); opacity: 0.7;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px;
+  }
+  .history-info .h-status { font-size: 9px; margin-top: 2px; }
+  .history-info .h-status.done { color: var(--success); }
+  .history-info .h-status.failed { color: var(--danger); }
+  .history-del {
+    font-size: 12px; color: var(--text2); opacity: 0; cursor: pointer; padding: 2px 4px;
+    transition: opacity 0.15s;
+  }
+  .history-item:hover .history-del { opacity: 1; }
+  .history-del:hover { color: var(--danger); }
+
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -270,6 +314,10 @@
       <div class="placeholder">Select an image and generate a video</div>
     </div>
     <div class="video-footer" id="videoFooter"></div>
+    <div class="history-section" id="historySection">
+      <div class="history-header">History <button onclick="clearHistory()">Clear All</button></div>
+      <div class="history-list" id="historyList"></div>
+    </div>
   </div>
 </div>
 
@@ -279,8 +327,52 @@ let bloggers = [], activeBlogger = null, selectedImage = null;
 let selectedDuration = 5, selectedRatio = '9:16';
 let pollAbort = null, promptVersions = [], activeVer = 0;
 let customImages = [];
+let videoHistory = JSON.parse(localStorage.getItem('videoHistory') || '[]');
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Video history management
+function saveHistory() { localStorage.setItem('videoHistory', JSON.stringify(videoHistory)); }
+function addHistory(entry) {
+  videoHistory.unshift(entry);
+  if (videoHistory.length > 50) videoHistory = videoHistory.slice(0, 50);
+  saveHistory(); renderHistory();
+}
+function clearHistory() {
+  if (!confirm('Clear all history?')) return;
+  videoHistory = []; saveHistory(); renderHistory();
+}
+function deleteHistory(idx) {
+  videoHistory.splice(idx, 1); saveHistory(); renderHistory();
+}
+function playHistory(idx) {
+  const h = videoHistory[idx]; if (!h?.videoUrl) return;
+  const vBody = document.getElementById('videoBody');
+  const vStatus = document.getElementById('videoStatus');
+  const vFooter = document.getElementById('videoFooter');
+  vBody.innerHTML = `<video src="${h.videoUrl}" controls autoplay loop playsinline></video>`;
+  vStatus.textContent = `History: ${h.time}`; vStatus.style.color = 'var(--success)';
+  vFooter.innerHTML = `<details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">Prompt</summary><p style="font-size:10px;color:var(--text2);padding:4px 0;font-style:italic">${esc(h.prompt)}</p></details>`;
+  document.querySelectorAll('.history-item').forEach((el,i) => el.classList.toggle('active', i===idx));
+}
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const section = document.getElementById('historySection');
+  if (videoHistory.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  list.innerHTML = videoHistory.map((h, i) => `
+    <div class="history-item" onclick="playHistory(${i})">
+      ${h.thumb ? `<img class="history-thumb" src="${h.thumb}" />` : '<div class="history-thumb"></div>'}
+      <div class="history-info">
+        <div class="h-time">${esc(h.time)}</div>
+        <div class="h-prompt">${esc((h.prompt||'').slice(0,60))}</div>
+        <div class="h-status ${h.status}">${h.status === 'done' ? 'Done' : h.status === 'failed' ? 'Failed' : 'Generating...'}</div>
+      </div>
+      <span class="history-del" onclick="event.stopPropagation();deleteHistory(${i})">x</span>
+    </div>
+  `).join('');
+}
+renderHistory();
 
 // Param buttons
 document.querySelectorAll('.pbtn[data-dur]').forEach(b => b.addEventListener('click', () => {
@@ -461,14 +553,15 @@ async function generate() {
     vStatus.textContent = 'Submitted, waiting...';
     vFooter.innerHTML = `<pre class="api-raw">${esc(JSON.stringify(d,null,2))}</pre>`;
     if (!d.success) throw new Error(d.error || JSON.stringify(d).slice(0,500));
-    pollVideo(d.request_id, prompt);
+    const thumbUrl = selectedImage.customUrl || imageUrl;
+    pollVideo(d.request_id, prompt, thumbUrl);
   } catch(e) {
     vStatus.className = 'col-header'; vStatus.textContent = 'Error: ' + e.message;
     vStatus.style.color = 'var(--danger)';
     finishGen();
   }
 }
-async function pollVideo(rid, prompt) {
+async function pollVideo(rid, prompt, thumbUrl) {
   const vBody = document.getElementById('videoBody');
   const vStatus = document.getElementById('videoStatus');
   const vFooter = document.getElementById('videoFooter');
@@ -489,9 +582,11 @@ async function pollVideo(rid, prompt) {
           vBody.innerHTML = `<video src="${url}" controls autoplay loop playsinline></video>`;
           vFooter.innerHTML = `<details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">Prompt</summary><p style="font-size:10px;color:var(--text2);padding:4px 0;font-style:italic">${esc(prompt)}</p></details>
             <details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">API Response</summary><pre class="api-raw">${esc(raw)}</pre></details>`;
+          addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: url, status: 'done', rid });
         } else {
           vStatus.textContent = 'Done but no video URL'; vStatus.style.color='var(--danger)';
           vFooter.innerHTML = `<pre class="api-raw">${esc(raw)}</pre>`;
+          addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: null, status: 'failed', rid });
         }
         finishGen(); return;
       }
@@ -499,6 +594,7 @@ async function pollVideo(rid, prompt) {
         vStatus.textContent = 'Failed'; vStatus.style.color='var(--danger)';
         vBody.innerHTML = '<div class="placeholder">Generation failed</div>';
         vFooter.innerHTML = `<pre class="api-raw">${esc(raw)}</pre>`;
+        addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: null, status: 'failed', rid });
         finishGen(); return;
       }
       const pct = d.progress ? ` ${d.progress}%` : '';
