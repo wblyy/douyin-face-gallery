@@ -399,24 +399,31 @@ async function extendVideo(idx) {
   vStatus.textContent = 'Setting up extend...'; vStatus.style.color = 'var(--text2)';
   extendContext = { previousPrompt: h.prompt };
   try {
-    // Use the original source image (h.thumb) as input for continuation
-    // Frame extraction from cross-origin video is unreliable (Atlas CDN has no CORS)
-    // The continuation prompt handles plot progression — same face image is fine
-    if (h.thumb) {
-      // h.thumb is a URL — if it matches a currently selected image or custom image, reselect it
-      // Otherwise select it as the image URL directly for generation
-      const existingCustom = customImages.find(c => c.url === h.thumb);
-      if (existingCustom) {
-        await pickCustom(existingCustom);
+    // Extract last frame from the video via server-side ffmpeg (CORS blocks client-side)
+    if (h.videoUrl) {
+      vStatus.textContent = 'Extracting last frame from video...'; vStatus.style.color = 'var(--text2)';
+      const frameRes = await fetch(`${API_BASE}/api/extract-last-frame`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoUrl: h.videoUrl }),
+      });
+      const frameData = await frameRes.json();
+      if (frameData.success && frameData.filename) {
+        const frameUrl = `${API_BASE}/uploads/${frameData.filename}`;
+        selectedImage = { customUrl: frameUrl, customBase64: null, bloggerName: 'Extend', filename: frameData.filename };
+        showPreview(frameUrl, 'Extend', 'Last frame from previous video');
+        vStatus.textContent = 'Last frame extracted. Generating continuation prompt...';
       } else {
-        // Set selectedImage directly with the thumb URL
-        selectedImage = { customUrl: h.thumb, customBase64: null, bloggerName: 'Extend', filename: 'extend-source.jpg' };
-        showPreview(h.thumb, 'Extend', 'Source image from previous video');
+        // Fallback to source image if frame extraction fails
+        console.warn('[extend] frame extraction failed, falling back to source image:', frameData.error);
+        if (h.thumb) {
+          selectedImage = { customUrl: h.thumb, customBase64: null, bloggerName: 'Extend', filename: 'extend-source.jpg' };
+          showPreview(h.thumb, 'Extend', 'Source image (frame extraction failed)');
+        }
       }
-    } else if (selectedImage) {
-      // No thumb saved — keep whatever image is currently selected
-      vStatus.textContent = 'No source image saved — using current selection';
-    } else {
+    } else if (h.thumb) {
+      selectedImage = { customUrl: h.thumb, customBase64: null, bloggerName: 'Extend', filename: 'extend-source.jpg' };
+      showPreview(h.thumb, 'Extend', 'Source image from previous video');
+    } else if (!selectedImage) {
       throw new Error('No source image available. Select an image first, then use Extend.');
     }
 
