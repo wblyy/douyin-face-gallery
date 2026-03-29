@@ -425,14 +425,34 @@ async function extendVideo(idx) {
     renderCustom();
     await pickCustom(img);
 
-    // Set prompt to continuation of previous
+    // Generate continuation prompt based on previous
     const ta = document.getElementById('promptTA');
-    ta.value = h.prompt || '';
-    document.getElementById('cnBox').style.display = 'none';
     document.getElementById('verTabs').style.display = 'none';
-
-    vStatus.textContent = 'Frame set as input. Edit prompt or click Wilder, then Generate.';
-    vStatus.style.color = 'var(--success)';
+    ta.value = ''; ta.placeholder = 'Generating continuation prompt...';
+    vStatus.textContent = 'Generating continuation prompt...'; vStatus.style.color = 'var(--text2)';
+    try {
+      const extR = await fetch(`${API_BASE}/api/extend-prompt`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ previousPrompt: h.prompt, duration: selectedDuration }),
+      });
+      const extD = await extR.json();
+      if (!extD.success) throw new Error(extD.error || 'Extend prompt failed');
+      ta.value = extD.prompt;
+      ta.placeholder = 'Select image, then Auto Generate or type...';
+      const cnBox = document.getElementById('cnBox'), cnText = document.getElementById('cnText');
+      if (extD.promptCn) { cnText.textContent = extD.promptCn; cnBox.style.display = 'block'; }
+      else { cnBox.style.display = 'none'; }
+      promptVersions = [];
+      vStatus.textContent = 'Continuation ready. Review prompt then Generate.';
+      vStatus.style.color = 'var(--success)';
+    } catch (extErr) {
+      // Fallback: just copy previous prompt
+      ta.value = h.prompt || '';
+      ta.placeholder = 'Select image, then Auto Generate or type...';
+      document.getElementById('cnBox').style.display = 'none';
+      vStatus.textContent = 'Continuation failed, using previous prompt. Try Wilder to escalate.';
+      vStatus.style.color = 'var(--danger)';
+    }
   } catch (err) {
     console.error('[extend] error:', err);
     vStatus.textContent = 'Extend failed: ' + err.message;
