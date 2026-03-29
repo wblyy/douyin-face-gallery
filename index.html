@@ -344,6 +344,7 @@ let selectedDuration = 5, selectedRatio = '9:16';
 let pollAbort = null, promptVersions = [], activeVer = 0;
 let customImages = [];
 let videoHistory = JSON.parse(localStorage.getItem('videoHistory') || '[]');
+let extendContext = null; // { previousPrompt } when in extend mode
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
@@ -396,6 +397,7 @@ async function extendVideo(idx) {
   const h = videoHistory[idx]; if (!h?.videoUrl) return;
   const vStatus = document.getElementById('videoStatus');
   vStatus.textContent = 'Setting up extend...'; vStatus.style.color = 'var(--text2)';
+  extendContext = { previousPrompt: h.prompt };
   try {
     // Use the original source image (h.thumb) as input for continuation
     // Frame extraction from cross-origin video is unreliable (Atlas CDN has no CORS)
@@ -436,8 +438,9 @@ async function extendVideo(idx) {
       if (extD.promptCn) { cnText.textContent = extD.promptCn; cnBox.style.display = 'block'; }
       else { cnBox.style.display = 'none'; }
       promptVersions = [];
-      vStatus.textContent = 'Continuation ready. Review prompt then Generate.';
+      vStatus.textContent = 'Continuation ready. Review prompt, Wilder to escalate, or Auto Generate to re-roll.';
       vStatus.style.color = 'var(--success)';
+      document.getElementById('autoBtn').textContent = 'Re-extend';
     } catch (extErr) {
       // Fallback: just copy previous prompt
       ta.value = h.prompt || '';
@@ -445,6 +448,7 @@ async function extendVideo(idx) {
       document.getElementById('cnBox').style.display = 'none';
       vStatus.textContent = 'Continuation failed, using previous prompt. Try Wilder to escalate.';
       vStatus.style.color = 'var(--danger)';
+      document.getElementById('autoBtn').textContent = 'Re-extend';
     }
   } catch (err) {
     console.error('[extend] error:', err);
@@ -571,6 +575,8 @@ function renderGallery() {
   }));
 }
 function pickImage(bid, bname, fname, el) {
+  extendContext = null; // Clear extend mode when manually selecting image
+  document.getElementById('autoBtn').textContent = 'Auto Generate';
   selectedImage = { bloggerId:bid, bloggerName:bname, filename:fname };
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
   document.querySelectorAll('.custom-thumb').forEach(t => t.classList.remove('selected'));
@@ -604,6 +610,29 @@ function selectVer(i) {
 async function autoPrompt() {
   if (!selectedImage) { alert('Select an image first'); return; }
   const btn = document.getElementById('autoBtn'), ta = document.getElementById('promptTA');
+  const cnBox = document.getElementById('cnBox'), cnText = document.getElementById('cnText');
+
+  // If in extend mode, generate continuation prompt instead of fresh prompt
+  if (extendContext?.previousPrompt) {
+    btn.disabled = true; btn.textContent = 'Extending...';
+    try {
+      const r = await fetch(`${API_BASE}/api/extend-prompt`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ previousPrompt: extendContext.previousPrompt, duration: selectedDuration }),
+      });
+      const d = await r.json();
+      if (!d.success) throw new Error(d.error || 'Extend failed');
+      ta.value = d.prompt;
+      if (d.promptCn) { cnText.textContent = d.promptCn; cnBox.style.display = 'block'; }
+      else { cnBox.style.display = 'none'; }
+      document.getElementById('verTabs').style.display = 'none';
+      promptVersions = [];
+    } catch(e) { ta.value = 'Error: ' + e.message; }
+    btn.disabled = false; btn.textContent = 'Auto Generate';
+    return;
+  }
+
+  // Normal mode: fresh prompt from image
   btn.disabled = true; btn.textContent = 'Analyzing...';
   try {
     const b64 = selectedImage.customBase64 || await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
@@ -618,7 +647,7 @@ async function autoPrompt() {
       promptVersions = [{prompt:d.prompt, promptCn:d.promptCn||''}];
       document.getElementById('verTabs').style.display = 'none';
       ta.value = d.prompt;
-      if (d.promptCn) { document.getElementById('cnText').textContent = d.promptCn; document.getElementById('cnBox').style.display = 'block'; }
+      if (d.promptCn) { cnText.textContent = d.promptCn; cnBox.style.display = 'block'; }
     } else { ta.value = d.error || 'Failed'; }
   } catch(e) { ta.value = 'Error: '+e.message; }
   btn.disabled = false; btn.textContent = 'Auto Generate';
