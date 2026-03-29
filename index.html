@@ -239,6 +239,42 @@
   }
   .history-item:hover .history-extend { opacity: 1; }
   .history-extend:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* Tree indentation for extend chains */
+  .history-item .tree-indent {
+    display: inline-flex; align-items: stretch; flex-shrink: 0; align-self: stretch;
+  }
+  .tree-indent .tree-line {
+    width: 16px; position: relative; flex-shrink: 0;
+  }
+  .tree-indent .tree-line.vert::before {
+    content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+    border-left: 1px solid var(--border);
+  }
+  .tree-indent .tree-line.branch::before {
+    content: ''; position: absolute; left: 7px; top: 0; bottom: 50%;
+    border-left: 1px solid var(--accent2);
+  }
+  .tree-indent .tree-line.branch::after {
+    content: ''; position: absolute; left: 7px; top: 50%;
+    width: 8px; border-top: 1px solid var(--accent2);
+  }
+  .tree-indent .tree-line.pass::before {
+    content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+    border-left: 1px solid var(--accent2);
+  }
+  /* Checkbox for mix selection */
+  .history-check {
+    width: 14px; height: 14px; flex-shrink: 0; accent-color: var(--accent);
+    cursor: pointer; margin-right: 2px;
+  }
+  /* Mix button in header */
+  .mix-btn {
+    font-size: 9px; background: none; border: 1px solid var(--accent); color: var(--accent);
+    border-radius: 3px; padding: 1px 8px; cursor: pointer; margin-left: 4px;
+  }
+  .mix-btn:hover { background: var(--accent); color: #fff; }
+  .mix-btn:disabled { opacity: 0.3; cursor: default; }
+  .mix-btn:disabled:hover { background: none; color: var(--accent); }
   .wilder-btn {
     padding: 2px 8px; border-radius: 4px; font-size: 10px; cursor: pointer;
     background: var(--surface2); border: 1px solid var(--danger); color: var(--danger);
@@ -331,7 +367,7 @@
     </div>
     <div class="video-footer" id="videoFooter"></div>
     <div class="history-section" id="historySection">
-      <div class="history-header">History <button onclick="clearHistory()">Clear All</button></div>
+      <div class="history-header">History <span><button id="mixBtn" class="mix-btn" disabled onclick="mixSelected()">Mix</button> <button onclick="clearHistory()">Clear All</button></span></div>
       <div class="history-list" id="historyList"></div>
     </div>
   </div>
@@ -344,7 +380,8 @@ let selectedDuration = 5, selectedRatio = '9:16';
 let pollAbort = null, promptVersions = [], activeVer = 0;
 let customImages = [];
 let videoHistory = JSON.parse(localStorage.getItem('videoHistory') || '[]');
-let extendContext = null; // { previousPrompt } when in extend mode
+let extendContext = null; // { previousPrompt, parentRid } when in extend mode
+let mixSelection = new Set(); // Set of rid strings selected for mix
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
@@ -372,24 +409,131 @@ function playHistory(idx) {
   vFooter.innerHTML = `<details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">Prompt</summary><p style="font-size:10px;color:var(--text2);padding:4px 0;font-style:italic">${esc(h.prompt)}</p></details>`;
   document.querySelectorAll('.history-item').forEach((el,i) => el.classList.toggle('active', i===idx));
 }
+// Build tree-ordered list: roots first (newest on top), children indented below parent
+function buildHistoryTree() {
+  // Map rid -> index for quick lookup
+  const ridMap = {};
+  videoHistory.forEach((h, i) => { if (h.rid) ridMap[h.rid] = i; });
+  // Find children of each rid
+  const childrenOf = {}; // rid -> [indices]
+  const roots = [];
+  videoHistory.forEach((h, i) => {
+    if (h.extendFrom && ridMap[h.extendFrom] !== undefined) {
+      (childrenOf[h.extendFrom] = childrenOf[h.extendFrom] || []).push(i);
+    } else {
+      roots.push(i);
+    }
+  });
+  // DFS to build ordered list with depth info
+  const ordered = [];
+  function dfs(idx, depth) {
+    ordered.push({ idx, depth });
+    const h = videoHistory[idx];
+    const kids = h.rid ? (childrenOf[h.rid] || []) : [];
+    kids.forEach(ci => dfs(ci, depth + 1));
+  }
+  roots.forEach(ri => dfs(ri, 0));
+  return ordered;
+}
+
 function renderHistory() {
   const list = document.getElementById('historyList');
   const section = document.getElementById('historySection');
   if (videoHistory.length === 0) { section.style.display = 'none'; return; }
   section.style.display = '';
-  list.innerHTML = videoHistory.map((h, i) => `
-    <div class="history-item" onclick="playHistory(${i})">
+  const tree = buildHistoryTree();
+  list.innerHTML = tree.map(({ idx: i, depth }) => {
+    const h = videoHistory[i];
+    const indent = depth > 0
+      ? `<span class="tree-indent">${Array.from({length: depth - 1}, () => '<span class="tree-line pass"></span>').join('')}<span class="tree-line branch"></span></span>`
+      : '';
+    const checked = mixSelection.has(h.rid) ? 'checked' : '';
+    const checkbox = h.status === 'done' && h.videoUrl
+      ? `<input type="checkbox" class="history-check" ${checked} onclick="event.stopPropagation();toggleMixCheck('${h.rid}')" />`
+      : '';
+    const extLabel = h.extendFrom ? '<span style="font-size:8px;color:var(--accent2);margin-left:2px">EXT</span>' : '';
+    return `<div class="history-item" onclick="playHistory(${i})" style="padding-left:${depth > 0 ? 4 : 12}px">
+      ${indent}${checkbox}
       ${h.thumb ? `<img class="history-thumb" src="${h.thumb}" />` : '<div class="history-thumb"></div>'}
       <div class="history-info">
-        <div class="h-time">${esc(h.time)}</div>
+        <div class="h-time">${esc(h.time)}${extLabel}</div>
         <div class="h-prompt">${esc((h.prompt||'').slice(0,60))}</div>
         <div class="h-status ${h.status}">${h.status === 'done' ? 'Done' : h.status === 'failed' ? 'Failed' : 'Generating...'}</div>
       </div>
       ${h.status === 'done' && h.videoUrl ? `<span class="history-extend" onclick="event.stopPropagation();extendVideo(${i})">Extend</span>` : ''}
       <span class="history-del" onclick="event.stopPropagation();deleteHistory(${i})">x</span>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+  updateMixBtn();
 }
+
+function toggleMixCheck(rid) {
+  if (mixSelection.has(rid)) mixSelection.delete(rid);
+  else mixSelection.add(rid);
+  updateMixBtn();
+}
+function updateMixBtn() {
+  const btn = document.getElementById('mixBtn');
+  if (btn) {
+    btn.disabled = mixSelection.size < 2;
+    btn.textContent = mixSelection.size > 0 ? `Mix (${mixSelection.size})` : 'Mix';
+  }
+}
+
+// Mix: sort selected videos by extend chain order, concat on server
+async function mixSelected() {
+  if (mixSelection.size < 2) return;
+  // Build extend chain order: walk from roots to leaves
+  const selected = videoHistory.filter(h => mixSelection.has(h.rid) && h.videoUrl);
+  if (selected.length < 2) { alert('Select at least 2 completed videos'); return; }
+
+  // Sort by extend chain: parent before child
+  const ridSet = new Set(selected.map(h => h.rid));
+  // Build chain: find the root(s) among selected, then follow children
+  const sorted = [];
+  const remaining = new Map(selected.map(h => [h.rid, h]));
+
+  // Find roots among selected (those whose extendFrom is not in selection)
+  const roots = selected.filter(h => !h.extendFrom || !ridSet.has(h.extendFrom));
+  // BFS from roots following extend chain
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (!remaining.has(cur.rid)) continue;
+    sorted.push(cur);
+    remaining.delete(cur.rid);
+    // Find children of cur that are in selection
+    const children = selected.filter(h => h.extendFrom === cur.rid && remaining.has(h.rid));
+    queue.push(...children);
+  }
+  // Add any remaining that weren't in the chain (disconnected selections)
+  for (const h of remaining.values()) sorted.push(h);
+
+  const videoUrls = sorted.map(h => h.videoUrl);
+  const vStatus = document.getElementById('videoStatus');
+  const vBody = document.getElementById('videoBody');
+  vStatus.textContent = `Mixing ${videoUrls.length} videos...`; vStatus.style.color = 'var(--text2)';
+  vBody.innerHTML = '<div class="placeholder">Concatenating videos on server...</div>';
+
+  try {
+    const r = await fetch(`${API_BASE}/api/concat-videos`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoUrls }),
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Concat failed');
+    const mixUrl = `${API_BASE}/uploads/${d.filename}`;
+    vStatus.textContent = `Mix complete (${videoUrls.length} clips)`; vStatus.style.color = 'var(--success)';
+    vBody.innerHTML = `<video src="${mixUrl}" controls autoplay loop playsinline></video>`;
+    // Clear selection
+    mixSelection.clear();
+    renderHistory();
+  } catch (err) {
+    vStatus.textContent = 'Mix failed: ' + (err?.message || String(err));
+    vStatus.style.color = 'var(--danger)';
+  }
+}
+
 renderHistory();
 
 // Extend: extract last frame from history video, set as input image, update prompt
@@ -397,7 +541,7 @@ async function extendVideo(idx) {
   const h = videoHistory[idx]; if (!h?.videoUrl) return;
   const vStatus = document.getElementById('videoStatus');
   vStatus.textContent = 'Setting up extend...'; vStatus.style.color = 'var(--text2)';
-  extendContext = { previousPrompt: h.prompt };
+  extendContext = { previousPrompt: h.prompt, parentRid: h.rid };
   try {
     // Extract last frame from the video via server-side ffmpeg (CORS blocks client-side)
     if (h.videoUrl) {
@@ -722,11 +866,14 @@ async function pollVideo(rid, prompt, thumbUrl) {
           vBody.innerHTML = `<video src="${url}" controls autoplay loop playsinline></video>`;
           vFooter.innerHTML = `<details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">Prompt</summary><p style="font-size:10px;color:var(--text2);padding:4px 0;font-style:italic">${esc(prompt)}</p></details>
             <details style="padding:4px 12px"><summary style="font-size:10px;color:var(--text2);cursor:pointer">API Response</summary><pre class="api-raw">${esc(raw)}</pre></details>`;
-          addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: url, status: 'done', rid });
+          const ef = extendContext?.parentRid || null;
+          addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: url, status: 'done', rid, extendFrom: ef });
+          if (extendContext) extendContext = null;
         } else {
           vStatus.textContent = 'Done but no video URL'; vStatus.style.color='var(--danger)';
           vFooter.innerHTML = `<pre class="api-raw">${esc(raw)}</pre>`;
-          addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: null, status: 'failed', rid });
+          addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: null, status: 'failed', rid, extendFrom: extendContext?.parentRid || null });
+          if (extendContext) extendContext = null;
         }
         finishGen(); return;
       }
@@ -734,7 +881,8 @@ async function pollVideo(rid, prompt, thumbUrl) {
         vStatus.textContent = 'Failed'; vStatus.style.color='var(--danger)';
         vBody.innerHTML = '<div class="placeholder">Generation failed</div>';
         vFooter.innerHTML = `<pre class="api-raw">${esc(raw)}</pre>`;
-        addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: null, status: 'failed', rid });
+        addHistory({ time: new Date().toLocaleString('zh-CN'), prompt, thumb: thumbUrl, videoUrl: null, status: 'failed', rid, extendFrom: extendContext?.parentRid || null });
+        if (extendContext) extendContext = null;
         finishGen(); return;
       }
       const pct = d.progress ? ` ${d.progress}%` : '';
