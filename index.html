@@ -208,7 +208,8 @@
         <button class="dur-btn" data-ratio="4:3">4:3</button>
         <button class="dur-btn" data-ratio="3:4">3:4</button>
       </div>
-      <div class="audio-row">
+      <!-- Audio not supported by wan-2.2-turbo-spicy model -->
+      <div class="audio-row" style="display:none">
         <label>Reference Audio <span style="color:var(--text2);font-weight:normal">(optional)</span></label>
         <div class="audio-upload">
           <input type="file" id="audioInput" accept="audio/*" style="display:none" />
@@ -464,7 +465,6 @@ async function generateVideo() {
         prompt,
         duration: selectedDuration,
         aspect_ratio: selectedRatio,
-        ...(audioBase64 ? { audioBase64 } : {}),
       }),
     });
 
