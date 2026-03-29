@@ -210,6 +210,33 @@
 
   .placeholder-msg { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--text2); font-size: 13px; padding: 40px; text-align: center; }
 
+  .upload-strip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .upload-strip label { font-size: 11px; color: var(--text2); }
+  .upload-btn {
+    padding: 3px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--accent2);
+    transition: all 0.2s;
+  }
+  .upload-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .custom-thumbs { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
+  .custom-thumb {
+    width: 40px; height: 70px; border-radius: 4px; overflow: hidden; cursor: pointer;
+    border: 2px solid transparent; flex-shrink: 0; position: relative; background: var(--surface);
+  }
+  .custom-thumb:hover { border-color: var(--accent2); }
+  .custom-thumb.selected { border-color: var(--accent); box-shadow: 0 0 8px rgba(108,92,231,0.3); }
+  .custom-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .custom-thumb .remove-btn {
+    position: absolute; top: -2px; right: -2px; width: 14px; height: 14px;
+    background: var(--danger); color: #fff; border: none; border-radius: 50%;
+    font-size: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .custom-thumb:hover .remove-btn { opacity: 1; }
+
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -231,6 +258,12 @@
     <span class="stats" id="stats"></span>
   </div>
   <div class="blogger-nav" id="bloggerNav"></div>
+  <div class="upload-strip">
+    <label>Custom</label>
+    <button class="upload-btn" onclick="document.getElementById('customImageInput').click()">+ Upload Image</button>
+    <input type="file" id="customImageInput" accept="image/*" multiple style="display:none" />
+    <div class="custom-thumbs" id="customThumbs"></div>
+  </div>
   <div class="gallery-section">
     <div class="gallery-grid" id="gallery"></div>
   </div>
@@ -293,6 +326,78 @@ let selectedRatio = '9:16';
 let pollAbort = null;
 let promptVersions = []; // [{prompt, promptCn, label}]
 let activeVersion = 0;
+let customImages = []; // [{id, base64, url (from server after upload), name}]
+
+// Custom image upload
+document.getElementById('customImageInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const id = Date.now() + '_' + Math.random().toString(36).slice(2,6);
+      const entry = { id, base64: reader.result, url: null, name: file.name };
+      customImages.push(entry);
+      renderCustomThumbs();
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value = '';
+});
+
+function renderCustomThumbs() {
+  const container = document.getElementById('customThumbs');
+  container.innerHTML = '';
+  customImages.forEach(img => {
+    const div = document.createElement('div');
+    div.className = 'custom-thumb' + (selectedImage && selectedImage.customId === img.id ? ' selected' : '');
+    div.innerHTML = `<img src="${img.base64}" /><button class="remove-btn" onclick="event.stopPropagation();removeCustomImage('${img.id}')">&times;</button>`;
+    div.addEventListener('click', () => selectCustomImage(img));
+    container.appendChild(div);
+  });
+}
+
+function removeCustomImage(id) {
+  customImages = customImages.filter(i => i.id !== id);
+  renderCustomThumbs();
+  if (selectedImage && selectedImage.customId === id) {
+    selectedImage = null;
+    document.getElementById('videoSection').classList.remove('active');
+  }
+}
+
+async function selectCustomImage(img) {
+  // Upload to server to get a URL if not already uploaded
+  if (!img.url) {
+    try {
+      const res = await fetch(`${API_BASE}/api/upload-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: img.base64 }),
+      });
+      const data = await res.json();
+      if (data.url) img.url = data.url;
+      else { alert('Upload failed: ' + (data.error || 'unknown')); return; }
+    } catch (err) { alert('Upload error: ' + err.message); return; }
+  }
+
+  selectedImage = { customId: img.id, customUrl: img.url, customBase64: img.base64, bloggerName: 'Custom', filename: img.name };
+  document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
+  renderCustomThumbs();
+
+  const section = document.getElementById('videoSection');
+  section.classList.add('active');
+  document.getElementById('selectedPreview').innerHTML = `
+    <img src="${img.base64}" style="width:56px;height:100px;object-fit:cover;border-radius:4px" />
+    <div class="selected-info">
+      <div class="blogger-name">Custom Upload</div>
+      <div class="file-name">${img.name}</div>
+    </div>
+  `;
+  // Auto-detect ratio
+  const tmpImg = new Image();
+  tmpImg.onload = () => setRatio(detectRatio(tmpImg.naturalWidth, tmpImg.naturalHeight));
+  tmpImg.src = img.base64;
+}
 
 function esc(s) {
   const d = document.createElement('div');
@@ -397,6 +502,7 @@ function setRatio(ratio) {
 function selectImage(bloggerId, bloggerName, filename, el) {
   selectedImage = { bloggerId, bloggerName, filename };
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('selected'));
+  document.querySelectorAll('.custom-thumb').forEach(t => t.classList.remove('selected'));
   el.classList.add('selected');
   const section = document.getElementById('videoSection');
   section.classList.add('active');
@@ -452,7 +558,9 @@ async function autoGeneratePrompt() {
   btn.disabled = true;
   btn.textContent = 'Analyzing...';
   try {
-    const imageBase64 = await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
+    const imageBase64 = selectedImage.customBase64
+      ? selectedImage.customBase64
+      : await toBase64(fullUrl(selectedImage.bloggerId, selectedImage.filename));
     const res = await fetch(`${API_BASE}/api/auto-prompt`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -511,7 +619,9 @@ async function generateVideo() {
   document.getElementById('cancelBtn').style.display = 'block';
 
   try {
-    const imageUrl = `https://wblyy.github.io/douyin-face-gallery/faces/${selectedImage.bloggerId}/${selectedImage.filename}`;
+    const imageUrl = selectedImage.customUrl
+      ? selectedImage.customUrl
+      : `https://wblyy.github.io/douyin-face-gallery/faces/${selectedImage.bloggerId}/${selectedImage.filename}`;
     area.innerHTML = `<div class="status-msg">Sending to Wan 2.2 Spicy...</div>`;
 
     const genRes = await fetch(`${API_BASE}/api/generate-video`, {
